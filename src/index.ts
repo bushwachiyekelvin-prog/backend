@@ -1,7 +1,26 @@
 import { Elysia } from "elysia";
+import { logger } from "./utils/logger";
+import { config } from "dotenv";
+import cors from "@elysiajs/cors";
+import openapi from "@elysiajs/openapi";
 
-const app = new Elysia().get("/", () => "Hello Elysia").listen(3000);
+config();
 
-console.log(
-  `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`
+const PORT = process.env.PORT || 8081;
+const APP_URL = process.env.APP_URL;
+
+const app = new Elysia()
+  .use(
+    cors({
+      origin: APP_URL,
+      credentials: true,
+    }),
+  )
+  .use(openapi())
+  .get("/", () => "Hello Elysia")
+  .get("/health", () => "OK")
+  .listen(PORT);
+
+logger.info(
+  `🦊 Elysia is running at ${app.server?.url}`,
 );
