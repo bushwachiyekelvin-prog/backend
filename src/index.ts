@@ -3,6 +3,7 @@ import { logger } from "./utils/logger";
 import { config } from "dotenv";
 import cors from "@elysiajs/cors";
 import openapi from "@elysiajs/openapi";
+import { clerkPlugin } from "elysia-clerk";
 
 config();
 
@@ -17,6 +18,7 @@ const app = new Elysia()
     }),
   )
   .use(openapi())
+  .use(clerkPlugin())
   .get("/", () => "Hello Elysia")
   .get("/health", () => "OK")
   .listen(PORT);
