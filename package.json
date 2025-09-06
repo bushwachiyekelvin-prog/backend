@@ -18,7 +18,9 @@
     "elysia-clerk": "^0.12.1",
     "pino": "^9.9.4",
     "pino-pretty": "^13.1.1",
-    "postgres": "^3.4.7"
+    "postgres": "^3.4.7",
+    "resend": "^6.0.2",
+    "svix": "^1.76.1"
   },
   "devDependencies": {
     "bun-types": "latest",

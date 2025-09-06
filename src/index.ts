@@ -6,6 +6,7 @@ import openapi from "@elysiajs/openapi";
 import { clerkPlugin } from "elysia-clerk";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
+import { userController } from "./modules/user/user.controller";
 
 config();
 
@@ -22,18 +23,16 @@ const app = new Elysia()
   .use(openapi())
   .use(clerkPlugin())
   .get("/", () => "Hello Elysia")
-  .get("/health", () => "OK")
-  .get("/db/health", async () => {
+  .get("/health", async () => {
     try {
       const result = await db.execute(sql`select 1 as ok`);
       return { ok: true, result };
-    } catch (err) {
-      logger.error({ err }, "DB health check failed");
+    } catch (err: any) {
+      logger.error(err, "DB health check failed");
       return new Response("DB Error", { status: 500 });
     }
   })
+  .use(userController)
   .listen(PORT);
 
-logger.info(
-  `🦊 Elysia is running at ${app.server?.url}`,
-);
+logger.info(`🦊 Elysia is running at ${app.server?.url}`);
