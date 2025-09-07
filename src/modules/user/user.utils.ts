@@ -18,7 +18,7 @@ interface ClerkUserData {
   first_name: string | null;
   last_name: string | null;
   primary_email_address_id: string | null;
-  public_metadata?: {
+  unsafe_metadata?: {
     gender?: string;
     phoneNumber?: string;
     dob?: string | Date;
@@ -64,7 +64,7 @@ export const extractUserDataFromWebhook = (
       : undefined;
 
     // Extract metadata with proper type safety
-    const publicMetadata = data.public_metadata || {};
+    const publicMetadata = data.unsafe_metadata || {};
     const gender = publicMetadata.gender;
     const phoneNumber = publicMetadata.phoneNumber;
     const dobRaw = publicMetadata.dob;
