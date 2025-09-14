@@ -1,62 +1,89 @@
-import { t } from "elysia";
+// Reusable types and JSON Schemas for User module (no Elysia dependency)
 
 export namespace UserModel {
-  export const signUpBody = t.Object({
-    email: t.String(),
-    firstName: t.String(),
-    lastName: t.String(),
-    gender: t.String(),
-    phoneNumber: t.String(),
-    dob: t.Date(),
-    clerkId: t.String()
-  });
+  // TypeScript types
+  export interface SignUpBody {
+    email: string;
+    firstName: string;
+    lastName: string;
+    gender: string;
+    phoneNumber: string;
+    dob: string | Date;
+    clerkId: string;
+  }
 
-  export type signUpBody = typeof signUpBody.static;
+  export interface SignUpResponse {
+    email: string;
+  }
 
-  export const signUpResponse = t.Object({
-		email: t.String(),
-	})
+  export interface ErrorResponse {
+    error: string;
+    code: string;
+  }
 
-  export type signUpResponse = typeof signUpResponse.static;
+  export interface OtpRequestBody {}
 
-  export const signUpInvalid = t.Literal("Invalid sign up parameters");
-  export type signUpInvalid = typeof signUpInvalid.static;
+  export interface OtpVerificationBody {
+    otp: string;
+  }
 
-  // Standard error envelope for webhook/controller errors
-  export const errorResponse = t.Object({
-    error: t.String(),
-    code: t.String(),
-  });
-  export type ErrorResponse = typeof errorResponse.static;
+  export interface OtpResponse {
+    success: boolean;
+    message: string;
+    isAlreadyVerified?: boolean;
+  }
 
-  // OTP request body
-  export const otpRequestBody = t.Object({});
-  export type otpRequestBody = typeof otpRequestBody.static;
+  export interface OtpVerificationResponse {
+    success: boolean;
+    message: string;
+  }
 
-  // OTP verification request body
-  export const otpVerificationBody = t.Object({
-    otp: t.String(),
-  });
-  export type otpVerificationBody = typeof otpVerificationBody.static;
+  // JSON Schemas for Fastify
+  export const ErrorResponseSchema = {
+    type: 'object',
+    properties: {
+      error: { type: 'string' },
+      code: { type: 'string' },
+    },
+    required: ['error', 'code'],
+    additionalProperties: true,
+  } as const;
 
-  // OTP response
-  export const otpResponse = t.Object({
-    success: t.Boolean(),
-    message: t.String(),
-    isAlreadyVerified: t.Optional(t.Boolean()),
-  });
-  export type otpResponse = typeof otpResponse.static;
+  export const SignUpResponseSchema = {
+    type: 'object',
+    properties: { email: { type: 'string' } },
+    required: ['email'],
+    additionalProperties: true,
+  } as const;
 
-  // OTP verification response
-  export const otpVerificationResponse = t.Object({
-    success: t.Boolean(),
-    message: t.String(),
-  });
-  export type otpVerificationResponse = typeof otpVerificationResponse.static;
+  export const OtpRequestBodySchema = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {},
+  } as const;
 
-  // OTP verification query parameters
-  export const otpVerificationQuery = t.Object({
-    otp: t.String(),
-  });
-  export type otpVerificationQuery = typeof otpVerificationQuery.static;
+  export const OtpVerificationBodySchema = {
+    type: 'object',
+    properties: { otp: { type: 'string' } },
+    required: ['otp'],
+    additionalProperties: false,
+  } as const;
+
+  export const OtpResponseSchema = {
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      message: { type: 'string' },
+      isAlreadyVerified: { type: 'boolean' },
+    },
+    required: ['success', 'message'],
+    additionalProperties: true,
+  } as const;
+
+  export const OtpVerificationResponseSchema = {
+    type: 'object',
+    properties: { success: { type: 'boolean' }, message: { type: 'string' } },
+    required: ['success', 'message'],
+    additionalProperties: true,
+  } as const;
 }

@@ -1,5 +1,5 @@
-import { WebhookEvent } from "elysia-clerk";
 import { UserModel } from "./user.model";
+import { WebhookEvent } from "@clerk/fastify";
 
 // Define proper types for Clerk webhook data
 interface ClerkEmailAddress {
@@ -24,12 +24,13 @@ interface ClerkUserData {
     dob?: string | Date;
     [key: string]: any;
   };
+
   [key: string]: any;
 }
 
 export interface UserDataExtractionResult {
   success: boolean;
-  userData?: UserModel.signUpBody;
+  userData?: UserModel.SignUpBody;
   missingFields?: string[];
   error?: {
     message: string;
@@ -43,12 +44,12 @@ export interface UserDataExtractionResult {
  * @returns UserDataExtractionResult with success status and user data or error
  */
 export const extractUserDataFromWebhook = (
-  event: WebhookEvent
+  event: WebhookEvent,
 ): UserDataExtractionResult => {
   try {
     // Cast data to our defined type for better type safety
     const data = event.data as ClerkUserData;
-    
+
     const {
       id: clerkUserId,
       email_addresses,
@@ -59,8 +60,8 @@ export const extractUserDataFromWebhook = (
 
     // Find primary email with proper type safety
     const primaryEmail = Array.isArray(email_addresses)
-      ? (email_addresses.find(e => e.id === primary_email_address_id)?.email_address ?? 
-         email_addresses[0]?.email_address)
+      ? (email_addresses.find((e) => e.id === primary_email_address_id)
+          ?.email_address ?? email_addresses[0]?.email_address)
       : undefined;
 
     // Extract metadata with proper type safety
@@ -91,12 +92,12 @@ export const extractUserDataFromWebhook = (
         missingFields: missing,
         error: {
           message: `Missing required fields: ${missing.join(", ")}`,
-          code: "INVALID_METADATA"
-        }
+          code: "INVALID_METADATA",
+        },
       };
     }
 
-    const userData: UserModel.signUpBody = {
+    const userData: UserModel.SignUpBody = {
       email: primaryEmail as string,
       firstName: first_name as string,
       lastName: last_name as string,
@@ -108,15 +109,15 @@ export const extractUserDataFromWebhook = (
 
     return {
       success: true,
-      userData
+      userData,
     };
   } catch (error) {
     return {
       success: false,
       error: {
         message: "Failed to extract user data from webhook",
-        code: "USER_DATA_EXTRACTION_FAILED"
-      }
+        code: "USER_DATA_EXTRACTION_FAILED",
+      },
     };
   }
 };

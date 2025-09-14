@@ -54,7 +54,10 @@ export const verifyClerkWebhook = (
 
     const wh = new Webhook(WEBHOOK_SECRET);
 
-    const evt: WebhookEvent = wh.verify(JSON.stringify(body), {
+    // Use raw payload when provided; fallback to JSON stringified body
+    const payload = typeof body === 'string' ? body : JSON.stringify(body);
+
+    const evt: WebhookEvent = wh.verify(payload, {
       "svix-id": svix_id,
       "svix-timestamp": svix_timestamp,
       "svix-signature": svix_signature,

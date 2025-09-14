@@ -1,24 +1,35 @@
 import { UserModel } from "./user.model";
 import { db } from "../../db";
 import { users } from "../../db/schema/users";
-import { status } from "elysia";
 import { logger } from "../../utils/logger";
 import { eq } from "drizzle-orm";
 import { OtpUtils } from "../../utils/otp.utils";
 import { smsService } from "../../services/sms.service";
 
+// Lightweight HTTP error helper compatible with our route error handling
+function httpError(status: number, message: string) {
+  const err: any = new Error(message);
+  err.status = status;
+  return err;
+}
+
 export abstract class User {
   static async signUp(
-    userPayload: UserModel.signUpBody,
-  ): Promise<UserModel.signUpResponse> {
+    userPayload: UserModel.SignUpBody,
+  ): Promise<UserModel.SignUpResponse> {
     try {
-      const user = await db.insert(users).values(userPayload).returning();
+      // Ensure dob is a Date object for the DB layer
+      const values = {
+        ...userPayload,
+        dob: typeof userPayload.dob === 'string' ? new Date(userPayload.dob) : userPayload.dob,
+      } as any;
+      const user = await db.insert(users).values(values).returning();
       return {
         email: user[0].email,
       };
     } catch (error: any) {
       logger.error(error);
-      throw status(500, "[SIGNUP_ERROR] An error occurred while signing up");
+      throw httpError(500, "[SIGNUP_ERROR] An error occurred while signing up");
     }
   }
 
@@ -46,7 +57,7 @@ export abstract class User {
    */
   static async sendPhoneVerificationOtp(
     clerkId: string
-  ): Promise<UserModel.otpResponse> {
+  ): Promise<UserModel.OtpResponse> {
     try {
       // Get user details
       const user = await db.query.users.findFirst({
@@ -54,7 +65,7 @@ export abstract class User {
       });
 
       if (!user) {
-        throw status(404, "[USER_NOT_FOUND] User not found");
+        throw httpError(404, "[USER_NOT_FOUND] User not found");
       }
 
       if (user.isPhoneVerified) {
@@ -66,7 +77,7 @@ export abstract class User {
       }
 
       if (!user.phoneNumber) {
-        throw status(400, "[INVALID_PHONE] No phone number found for user");
+        throw httpError(400, "[INVALID_PHONE] No phone number found for user");
       }
 
       // Generate OTP
@@ -94,7 +105,7 @@ export abstract class User {
     } catch (error: any) {
       logger.error("Error sending OTP:", error);
       if (error.status) throw error;
-      throw status(500, "[OTP_ERROR] Failed to send OTP");
+      throw httpError(500, "[OTP_ERROR] Failed to send OTP");
     }
   }
 
@@ -107,7 +118,7 @@ export abstract class User {
   static async verifyPhoneOtp(
     clerkId: string,
     otp: string
-  ): Promise<UserModel.otpVerificationResponse> {
+  ): Promise<UserModel.OtpVerificationResponse> {
     try {
       // Get user details
       const user = await db.query.users.findFirst({
@@ -115,7 +126,7 @@ export abstract class User {
       });
 
       if (!user) {
-        throw status(404, "[USER_NOT_FOUND] User not found");
+        throw httpError(404, "[USER_NOT_FOUND] User not found");
       }
 
       if (user.isPhoneVerified) {
@@ -157,7 +168,7 @@ export abstract class User {
     } catch (error: any) {
       logger.error("Error verifying OTP:", error);
       if (error.status) throw error;
-      throw status(500, "[VERIFICATION_ERROR] Failed to verify OTP");
+      throw httpError(500, "[VERIFICATION_ERROR] Failed to verify OTP");
     }
   }
 
@@ -168,7 +179,7 @@ export abstract class User {
    */
   static async resendPhoneVerificationOtp(
     clerkId: string
-  ): Promise<UserModel.otpResponse> {
+  ): Promise<UserModel.OtpResponse> {
     return this.sendPhoneVerificationOtp(clerkId);
   }
 }
