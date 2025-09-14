@@ -28,4 +28,35 @@ export namespace UserModel {
     code: t.String(),
   });
   export type ErrorResponse = typeof errorResponse.static;
+
+  // OTP request body
+  export const otpRequestBody = t.Object({});
+  export type otpRequestBody = typeof otpRequestBody.static;
+
+  // OTP verification request body
+  export const otpVerificationBody = t.Object({
+    otp: t.String(),
+  });
+  export type otpVerificationBody = typeof otpVerificationBody.static;
+
+  // OTP response
+  export const otpResponse = t.Object({
+    success: t.Boolean(),
+    message: t.String(),
+    isAlreadyVerified: t.Optional(t.Boolean()),
+  });
+  export type otpResponse = typeof otpResponse.static;
+
+  // OTP verification response
+  export const otpVerificationResponse = t.Object({
+    success: t.Boolean(),
+    message: t.String(),
+  });
+  export type otpVerificationResponse = typeof otpVerificationResponse.static;
+
+  // OTP verification query parameters
+  export const otpVerificationQuery = t.Object({
+    otp: t.String(),
+  });
+  export type otpVerificationQuery = typeof otpVerificationQuery.static;
 }

@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, varchar, index } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, varchar, index, boolean } from "drizzle-orm/pg-core";
 import { createId } from "@paralleldrive/cuid2";
 
 export const users = pgTable(
@@ -11,6 +11,9 @@ export const users = pgTable(
     imageUrl: text("image_url"),
     email: varchar("email", { length: 320 }).notNull().unique(),
     phoneNumber: varchar("phone_number", { length: 32 }),
+    isPhoneVerified: boolean("is_phone_verified").default(false),
+    phoneVerificationCode: varchar("phone_verification_code", { length: 10 }),
+    phoneVerificationExpiry: timestamp("phone_verification_expiry", { withTimezone: true }),
     role: varchar("role", { length: 50 }),
     position: varchar("position", { length: 50 }),
     gender: varchar("gender", { length: 20 }),

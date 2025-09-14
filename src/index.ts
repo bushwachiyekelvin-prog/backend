@@ -21,7 +21,6 @@ const app = new Elysia()
     }),
   )
   .use(openapi())
-  .use(clerkPlugin())
   .get("/", () => "Hello Elysia")
   .get("/health", async () => {
     try {
@@ -31,6 +30,10 @@ const app = new Elysia()
       logger.error(err, "DB health check failed");
       return new Response("DB Error", { status: 500 });
     }
+  })
+  .use(clerkPlugin())
+  .post("/test", ({body}) => {
+    return body
   })
   .use(userController)
   .listen(PORT);
