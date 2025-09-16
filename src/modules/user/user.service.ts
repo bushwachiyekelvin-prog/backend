@@ -5,6 +5,7 @@ import { logger } from "../../utils/logger";
 import { eq } from "drizzle-orm";
 import { OtpUtils } from "../../utils/otp.utils";
 import { smsService } from "../../services/sms.service";
+import { clerkClient } from "@clerk/fastify";
 
 // Lightweight HTTP error helper compatible with our route error handling
 function httpError(status: number, message: string) {
@@ -21,7 +22,10 @@ export abstract class User {
       // Ensure dob is a Date object for the DB layer
       const values = {
         ...userPayload,
-        dob: typeof userPayload.dob === 'string' ? new Date(userPayload.dob) : userPayload.dob,
+        dob:
+          typeof userPayload.dob === "string"
+            ? new Date(userPayload.dob)
+            : userPayload.dob,
       } as any;
       const user = await db.insert(users).values(values).returning();
       return {
@@ -56,7 +60,7 @@ export abstract class User {
    * @returns Success status
    */
   static async sendPhoneVerificationOtp(
-    clerkId: string
+    clerkId: string,
   ): Promise<UserModel.OtpResponse> {
     try {
       // Get user details
@@ -117,7 +121,7 @@ export abstract class User {
    */
   static async verifyPhoneOtp(
     clerkId: string,
-    otp: string
+    otp: string,
   ): Promise<UserModel.OtpVerificationResponse> {
     try {
       // Get user details
@@ -140,7 +144,7 @@ export abstract class User {
       const isValid = OtpUtils.validateOtp(
         otp,
         user.phoneVerificationCode || null,
-        user.phoneVerificationExpiry || null
+        user.phoneVerificationExpiry || null,
       );
 
       if (!isValid) {
@@ -178,8 +182,66 @@ export abstract class User {
    * @returns Success status
    */
   static async resendPhoneVerificationOtp(
-    clerkId: string
+    clerkId: string,
   ): Promise<UserModel.OtpResponse> {
     return this.sendPhoneVerificationOtp(clerkId);
+  }
+
+  /**
+   * Update a non verified user's phone number
+   * @param clerkId User's Clerk ID
+   * @param phoneNumber User's phone number
+   * */
+  static async updatePhoneNumber(
+    clerkId: string,
+    phoneNumber: string,
+  ): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    try {
+      const user = await db.query.users.findFirst({
+        where: eq(users.clerkId, clerkId),
+      });
+
+      if (!user) {
+        throw httpError(404, "[USER_NOT_FOUND] User not found");
+      }
+
+      if (user.isPhoneVerified) {
+        throw httpError(400, "[PHONE_VERIFIED] Phone number already verified");
+      }
+
+      if (!user.phoneNumber) {
+        throw httpError(400, "[INVALID_PHONE] No phone number found for user");
+      }
+
+      await db
+        .update(users)
+        .set({
+          phoneNumber,
+        })
+        .where(eq(users.id, user.id));
+
+      // update clerk unsafe metadata phone number
+      await clerkClient.users.updateUserMetadata(user.clerkId, {
+        unsafeMetadata: {
+          phoneNumber,
+        },
+      });
+
+
+      return {
+        success: true,
+        message: "Phone number updated successfully",
+      };
+    } catch (error: any) {
+      logger.error("Error updating phone number:", error);
+      if (error.status) throw error;
+      throw httpError(
+        500,
+        "[UPDATE_PHONE_ERROR] Failed to update phone number",
+      );
+    }
   }
 }

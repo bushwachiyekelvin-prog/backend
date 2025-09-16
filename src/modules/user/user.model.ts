@@ -40,50 +40,64 @@ export namespace UserModel {
 
   // JSON Schemas for Fastify
   export const ErrorResponseSchema = {
-    type: 'object',
+    type: "object",
     properties: {
-      error: { type: 'string' },
-      code: { type: 'string' },
+      error: { type: "string" },
+      code: { type: "string" },
     },
-    required: ['error', 'code'],
+    required: ["error", "code"],
     additionalProperties: true,
   } as const;
 
   export const SignUpResponseSchema = {
-    type: 'object',
-    properties: { email: { type: 'string' } },
-    required: ['email'],
+    type: "object",
+    properties: { email: { type: "string" } },
+    required: ["email"],
     additionalProperties: true,
   } as const;
 
   export const OtpRequestBodySchema = {
-    type: 'object',
+    type: "object",
     additionalProperties: false,
     properties: {},
   } as const;
 
   export const OtpVerificationBodySchema = {
-    type: 'object',
-    properties: { otp: { type: 'string' } },
-    required: ['otp'],
+    type: "object",
+    properties: { otp: { type: "string" } },
+    required: ["otp"],
     additionalProperties: false,
   } as const;
 
   export const OtpResponseSchema = {
-    type: 'object',
+    type: "object",
     properties: {
-      success: { type: 'boolean' },
-      message: { type: 'string' },
-      isAlreadyVerified: { type: 'boolean' },
+      success: { type: "boolean" },
+      message: { type: "string" },
+      isAlreadyVerified: { type: "boolean" },
     },
-    required: ['success', 'message'],
+    required: ["success", "message"],
+    additionalProperties: true,
+  } as const;
+
+  export const EditPhoneBodySchema = {
+    type: "object",
+    properties: { phoneNumber: { type: "string" } },
+    required: ["phoneNumber"],
+    additionalProperties: false,
+  } as const;
+
+  export const EditPhoneResponseSchema = {
+    type: "object",
+    properties: { success: { type: "boolean" }, message: { type: "string" } },
+    required: ["success", "message"],
     additionalProperties: true,
   } as const;
 
   export const OtpVerificationResponseSchema = {
-    type: 'object',
-    properties: { success: { type: 'boolean' }, message: { type: 'string' } },
-    required: ['success', 'message'],
+    type: "object",
+    properties: { success: { type: "boolean" }, message: { type: "string" } },
+    required: ["success", "message"],
     additionalProperties: true,
   } as const;
 }
