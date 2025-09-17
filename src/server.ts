@@ -12,6 +12,7 @@ import { corsPlugin } from './plugins/cors';
 import { helmetPlugin } from './plugins/helmet';
 import { rateLimitPlugin } from './plugins/rate-limit';
 import { userRoutes } from './routes/user.routes';
+import { businessRoutes } from './routes/business.routes';
 import requestId from 'fastify-request-id';
 import { rawBodyPlugin } from './plugins/raw-body';
 import { requestLoggerPlugin } from "./plugins/request-logger";
@@ -42,6 +43,7 @@ async function registerPlugins(fastify: FastifyInstance): Promise<void> {
 
   await fastify.register(clerkPlugin);
   await fastify.register(userRoutes, { prefix: '/user' });
+  await fastify.register(businessRoutes, { prefix: '/business' });
 
   fastify.get('/', async () => {
     return { message: 'Hello from Fastify!' };

@@ -33,10 +33,16 @@ export namespace UserModel {
     isAlreadyVerified?: boolean;
   }
 
-  export interface OtpVerificationResponse {
+  // Shared success response (success + message)
+  export interface BasicSuccessResponse {
     success: boolean;
     message: string;
   }
+
+  export type OtpVerificationResponse = BasicSuccessResponse;
+
+  // Response type for editing phone number, aligned with EditPhoneResponseSchema
+  export type EditPhoneResponse = BasicSuccessResponse;
 
   // JSON Schemas for Fastify
   export const ErrorResponseSchema = {
@@ -80,6 +86,14 @@ export namespace UserModel {
     additionalProperties: true,
   } as const;
 
+  // Shared JSON schema for success + message responses
+  export const BasicSuccessResponseSchema = {
+    type: "object",
+    properties: { success: { type: "boolean" }, message: { type: "string" } },
+    required: ["success", "message"],
+    additionalProperties: true,
+  } as const;
+
   export const EditPhoneBodySchema = {
     type: "object",
     properties: { phoneNumber: { type: "string" } },
@@ -87,17 +101,7 @@ export namespace UserModel {
     additionalProperties: false,
   } as const;
 
-  export const EditPhoneResponseSchema = {
-    type: "object",
-    properties: { success: { type: "boolean" }, message: { type: "string" } },
-    required: ["success", "message"],
-    additionalProperties: true,
-  } as const;
+  export const EditPhoneResponseSchema = BasicSuccessResponseSchema;
 
-  export const OtpVerificationResponseSchema = {
-    type: "object",
-    properties: { success: { type: "boolean" }, message: { type: "string" } },
-    required: ["success", "message"],
-    additionalProperties: true,
-  } as const;
+  export const OtpVerificationResponseSchema = BasicSuccessResponseSchema;
 }

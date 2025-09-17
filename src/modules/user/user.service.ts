@@ -195,10 +195,7 @@ export abstract class User {
   static async updatePhoneNumber(
     clerkId: string,
     phoneNumber: string,
-  ): Promise<{
-    success: boolean;
-    message: string;
-  }> {
+  ): Promise<UserModel.EditPhoneResponse> {
     try {
       const user = await db.query.users.findFirst({
         where: eq(users.clerkId, clerkId),
