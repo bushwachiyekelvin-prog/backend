@@ -103,7 +103,8 @@ export namespace UserModel {
     | "national_id_front"
     | "national_id_back"
     | "passport_bio_page"
-    | "personal_tax_document";
+    | "personal_tax_document"
+    | "user_photo"
 
   export type UserIdType = "national_id" | "passport";
 
@@ -129,6 +130,7 @@ export namespace UserModel {
           "national_id_back",
           "passport_bio_page",
           "personal_tax_document",
+          "user_photo"
         ],
       },
       docUrl: { type: "string", minLength: 1, format: "uri" },
