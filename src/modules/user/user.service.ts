@@ -361,6 +361,52 @@ export abstract class User {
     }
   }
 
+  /**
+   * Update user's email when a Clerk user.updated webhook is received
+   * @param clerkId User's Clerk ID
+   * @param email New primary email to set
+   * @returns Object containing the updated email (for route schema compatibility)
+   */
+  static async updateEmail(
+    clerkId: string,
+    email: string,
+  ): Promise<UserModel.SignUpResponse> {
+    try {
+      // Resolve target user
+      const user = await db.query.users.findFirst({
+        where: eq(users.clerkId, clerkId),
+      });
+
+      if (!user) {
+        throw httpError(404, "[USER_NOT_FOUND] User not found");
+      }
+
+      // If email unchanged, no-op
+      if (user.email === email) {
+        return { email };
+      }
+
+      // Ensure email uniqueness (belongs to another user?)
+      const existingWithEmail = await db.query.users.findFirst({
+        where: eq(users.email, email),
+      });
+      if (existingWithEmail && existingWithEmail.id !== user.id) {
+        throw httpError(400, "[EMAIL_TAKEN] Email already in use");
+      }
+
+      // Update
+      await db
+        .update(users)
+        .set({ email, updatedAt: new Date() })
+        .where(eq(users.id, user.id));
+
+      return { email };
+    } catch (error: any) {
+      logger.error("Error updating user email:", error);
+      if (error?.status) throw error;
+      throw httpError(500, "[UPDATE_EMAIL_ERROR] Failed to update email");
+    }
+  }
 
   /**
    * Get user profile fields (excluding some fields)

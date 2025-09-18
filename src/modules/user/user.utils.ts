@@ -121,3 +121,48 @@ export const extractUserDataFromWebhook = (
     };
   }
 };
+
+/**
+ * Extracts clerkId and primary email from any Clerk user webhook event (e.g. user.updated)
+ */
+export const extractEmailUpdateFromWebhook = (
+  event: WebhookEvent,
+): {
+  success: boolean;
+  clerkId?: string;
+  email?: string;
+  error?: { message: string; code: string };
+} => {
+  try {
+    const data = event.data as ClerkUserData;
+    const clerkId = data.id;
+    const { email_addresses, primary_email_address_id } = data;
+
+    const primaryEmail = Array.isArray(email_addresses)
+      ? (
+          email_addresses.find((e) => e.id === primary_email_address_id)
+            ?.email_address ?? email_addresses[0]?.email_address
+        )
+      : undefined;
+
+    if (!clerkId || !primaryEmail) {
+      return {
+        success: false,
+        error: {
+          message: "Missing clerkId or primary email in webhook payload",
+          code: "EMAIL_UPDATE_EXTRACTION_FAILED",
+        },
+      };
+    }
+
+    return { success: true, clerkId, email: primaryEmail };
+  } catch (error) {
+    return {
+      success: false,
+      error: {
+        message: "Failed to extract email update from webhook",
+        code: "EMAIL_UPDATE_EXTRACTION_FAILED",
+      },
+    };
+  }
+};

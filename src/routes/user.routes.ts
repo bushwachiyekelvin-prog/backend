@@ -5,7 +5,7 @@ import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { clerkClient, getAuth } from "@clerk/fastify";
 import { logger } from "../utils/logger";
 import { verifyClerkWebhook } from "../utils/webhook.utils";
-import { extractUserDataFromWebhook } from "../modules/user/user.utils";
+import { extractUserDataFromWebhook, extractEmailUpdateFromWebhook } from "../modules/user/user.utils";
 import { sendWelcomeEmail } from "../utils/email.utils";
 import { User } from "../modules/user/user.service";
 import { UserModel } from "../modules/user/user.model";
@@ -79,6 +79,20 @@ export async function userRoutes(fastify: FastifyInstance) {
           }
 
           return reply.send(userResult);
+        } else if (type === "user.updated") {
+          const updateInfo = extractEmailUpdateFromWebhook(event!);
+          if (!updateInfo.success) {
+            return reply.code(400).send({
+              error: updateInfo.error?.message || "Invalid webhook payload",
+              code: updateInfo.error?.code || "EMAIL_UPDATE_EXTRACTION_FAILED",
+            });
+          }
+
+          const updateResult = await User.updateEmail(
+            updateInfo.clerkId!,
+            updateInfo.email!,
+          );
+          return reply.send(updateResult);
         }
 
         return reply
