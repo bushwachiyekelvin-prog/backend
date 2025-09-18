@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { OtpUtils } from "../../utils/otp.utils";
 import { smsService } from "../../services/sms.service";
 import { clerkClient } from "@clerk/fastify";
+import { personalDocuments } from "../../db/schema/personalDocuments";
 
 // Lightweight HTTP error helper compatible with our route error handling
 function httpError(status: number, message: string) {
@@ -238,6 +239,63 @@ export abstract class User {
       throw httpError(
         500,
         "[UPDATE_PHONE_ERROR] Failed to update phone number",
+      );
+    }
+  }
+
+  /**
+   * Update user core identity fields and attach personal documents
+   * @param clerkId Clerk user id
+   * @param payload Update body containing idNumber, taxNumber, idType and documents[]
+   */
+  static async updateUserAndDocuments(
+    clerkId: string,
+    payload: UserModel.UpdateUserAndDocumentsBody,
+  ): Promise<UserModel.BasicSuccessResponse> {
+    try {
+      // Resolve internal user
+      const user = await db.query.users.findFirst({
+        where: eq(users.clerkId, clerkId),
+      });
+
+      if (!user) {
+        throw httpError(404, "[USER_NOT_FOUND] User not found");
+      }
+
+      await db.transaction(async (tx) => {
+        // Update user identity fields
+        await tx
+          .update(users)
+          .set({
+            idNumber: payload.idNumber,
+            taxNumber: payload.taxNumber,
+            idType: payload.idType,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, user.id));
+
+        if (Array.isArray(payload.documents) && payload.documents.length > 0) {
+          // Insert documents (simple append; can be adjusted to upsert/replace if needed)
+          await tx.insert(personalDocuments).values(
+            payload.documents.map((doc) => ({
+              userId: user.id,
+              docType: doc.docType,
+              docUrl: doc.docUrl,
+            })),
+          );
+        }
+      });
+
+      return {
+        success: true,
+        message: "Updated user and documents successfully",
+      };
+    } catch (error: any) {
+      logger.error("Error updating user and documents:", error);
+      if (error?.status) throw error;
+      throw httpError(
+        500,
+        "[UPDATE_USER_DOCS_ERROR] Failed to update user and documents",
       );
     }
   }

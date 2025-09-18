@@ -239,7 +239,7 @@ export async function userRoutes(fastify: FastifyInstance) {
     },
   );
 
-  // POST /user/update-phone
+  // POST /user/edit-phone — requires auth
   fastify.post(
     "/edit-phone",
     {
@@ -280,6 +280,66 @@ export async function userRoutes(fastify: FastifyInstance) {
         return reply.code(500).send({
           error: "Failed to update phone",
           code: "PHONE_UPDATE_FAILED",
+        });
+      }
+    },
+  );
+
+  // POST /user/update-docs — update user fields and attach personal documents
+  fastify.post(
+    "/update-docs",
+    {
+      schema: {
+        body: UserModel.UpdateUserAndDocumentsBodySchema,
+        response: {
+          200: UserModel.UpdateUserAndDocumentsResponseSchema,
+          400: UserModel.ErrorResponseSchema,
+          401: UserModel.ErrorResponseSchema,
+          404: UserModel.ErrorResponseSchema,
+          500: UserModel.ErrorResponseSchema,
+        },
+        tags: ["user"],
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const { userId } = getAuth(request);
+        if (!userId) {
+          return reply
+            .code(401)
+            .send({ error: "Unauthorized", code: "UNAUTHORIZED" });
+        }
+
+        const result = await User.updateUserAndDocuments(
+          userId,
+          request.body as UserModel.UpdateUserAndDocumentsBody,
+        );
+
+         if (result.success) {
+          try {
+            await clerkClient.users.updateUser(userId, {
+              publicMetadata: { onBoardingStage: 1, isPhoneVerified: true },
+            });
+          } catch (e) {
+            logger.error(
+              "Failed to update Clerk publicMetadata.isPhoneVerified:",
+              e,
+            );
+          }
+        }
+
+        return reply.send(result);
+      } catch (error: any) {
+        logger.error("Error updating user and documents:", error);
+        if (error?.status) {
+          return reply.code(error.status).send({
+            error: error.message,
+            code: String(error.message).split("] ")[0].replace("[", ""),
+          });
+        }
+        return reply.code(500).send({
+          error: "Failed to update user and documents",
+          code: "UPDATE_USER_DOCS_FAILED",
         });
       }
     },
