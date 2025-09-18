@@ -1,7 +1,5 @@
-// Reusable types and JSON Schemas for User module (no Elysia dependency)
 
 export namespace UserModel {
-  // TypeScript types
   export interface SignUpBody {
     email: string;
     firstName: string;
@@ -33,7 +31,6 @@ export namespace UserModel {
     isAlreadyVerified?: boolean;
   }
 
-  // Shared success response (success + message)
   export interface BasicSuccessResponse {
     success: boolean;
     message: string;
@@ -41,10 +38,8 @@ export namespace UserModel {
 
   export type OtpVerificationResponse = BasicSuccessResponse;
 
-  // Response type for editing phone number, aligned with EditPhoneResponseSchema
   export type EditPhoneResponse = BasicSuccessResponse;
 
-  // JSON Schemas for Fastify
   export const ErrorResponseSchema = {
     type: "object",
     properties: {
@@ -86,7 +81,6 @@ export namespace UserModel {
     additionalProperties: true,
   } as const;
 
-  // Shared JSON schema for success + message responses
   export const BasicSuccessResponseSchema = {
     type: "object",
     properties: { success: { type: "boolean" }, message: { type: "string" } },
@@ -105,15 +99,12 @@ export namespace UserModel {
 
   export const OtpVerificationResponseSchema = BasicSuccessResponseSchema;
 
-  // Types and Schemas for updating user info along with personal documents
-  // Doc type enum (snake_case, stable API surface)
   export type PersonalDocType =
     | "national_id_front"
     | "national_id_back"
     | "passport_bio_page"
     | "personal_tax_document";
 
-  // ID type enum used to drive conditional validation (snake_case)
   export type UserIdType = "national_id" | "passport";
 
   export interface PersonalDocument {
@@ -128,7 +119,6 @@ export namespace UserModel {
     documents: PersonalDocument[];
   }
 
-  // JSON Schemas
   export const PersonalDocumentItemSchema = {
     type: "object",
     properties: {
@@ -158,7 +148,6 @@ export namespace UserModel {
     required: ["idNumber", "taxNumber", "idType", "documents"],
     additionalProperties: false,
     allOf: [
-      // If idType is nationalID, require presence of both nationalIdFront and nationalIdBack
       {
         if: { properties: { idType: { const: "national_id" } }, required: ["idType"] },
         then: {
@@ -190,7 +179,6 @@ export namespace UserModel {
           ],
         },
       },
-      // If idType is passport, require presence of passportbiopage
       {
         if: { properties: { idType: { const: "passport" } }, required: ["idType"] },
         then: {
@@ -209,6 +197,93 @@ export namespace UserModel {
     ],
   } as const;
 
-  // Reuse the shared success response or customize as needed
   export const UpdateUserAndDocumentsResponseSchema = BasicSuccessResponseSchema;
+
+  // ------------------------------------------------------------
+  // Edit User Profile (exclude email and phoneNumber)
+  // ------------------------------------------------------------
+  // Allows updating core profile fields while explicitly disallowing
+  // email and phoneNumber updates via schema-level constraints.
+  export interface EditUserProfileBody {
+    firstName?: string;
+    lastName?: string;
+    imageUrl?: string;
+    gender?: string;
+    idNumber?: string;
+    taxNumber?: string;
+    dob?: string | Date;
+    idType?: UserIdType;
+    role?: string;
+    position?: string;
+  }
+
+  // JSON Schema: does not include email or phoneNumber and sets
+  // additionalProperties to false to prevent their presence.
+  export const EditUserProfileBodySchema = {
+    type: "object",
+    properties: {
+      firstName: { type: "string", minLength: 1, maxLength: 100 },
+      lastName: { type: "string", minLength: 1, maxLength: 100 },
+      imageUrl: { type: "string" },
+      gender: { type: "string", minLength: 1, maxLength: 20 },
+      idNumber: { type: "string", minLength: 1, maxLength: 50 },
+      taxNumber: { type: "string", minLength: 1, maxLength: 50 },
+      // Accept ISO date-time strings; service layer can coerce to Date
+      dob: { type: "string", format: "date-time" },
+      idType: { type: "string", enum: ["national_id", "passport"] },
+      role: { type: "string", minLength: 1, maxLength: 50 },
+      position: { type: "string", minLength: 1, maxLength: 50 },
+    },
+    required: [],
+    additionalProperties: false,
+  } as const;
+
+  // Response can reuse the shared success schema
+  export type EditUserProfileResponse = BasicSuccessResponse;
+  export const EditUserProfileResponseSchema = BasicSuccessResponseSchema;
+
+  export interface UserProfile {
+    success: boolean;
+    message: string;
+    data: {
+      firstName?: string;
+      lastName?: string;
+      imageUrl?: string;
+      gender?: string;
+      idNumber?: string;
+      taxNumber?: string;
+      dob?: string | Date;
+      idType?: UserIdType;
+      role?: string;
+      position?: string;
+      email?: string;
+      phoneNumber?: string;
+    };
+  }
+  export const GetUserProfileResponseSchema = {
+    type: "object",
+    properties: {
+      success: { type: "boolean" },
+      message: { type: "string" },
+      data: {
+        type: "object",
+        properties: {
+          firstName: { type: "string" },
+          lastName: { type: "string" },
+          imageUrl: { type: "string" },
+          gender: { type: "string" },
+          idNumber: { type: "string" },
+          taxNumber: { type: "string" },
+          dob: { type: "string" },
+          idType: { type: "string" },
+          role: { type: "string" },
+          position: { type: "string" },
+          email: { type: "string" },
+          phoneNumber: { type: "string" },
+        },
+      },
+    },
+    required: ["success", "message"],
+    additionalProperties: true,
+  } as const;
 }

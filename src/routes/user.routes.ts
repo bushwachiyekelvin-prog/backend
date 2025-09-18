@@ -344,4 +344,87 @@ export async function userRoutes(fastify: FastifyInstance) {
       }
     },
   );
+
+  // PUT /user/edit-profile — requires auth
+  fastify.put(
+    "/edit-profile",
+    {
+      schema: {
+        body: UserModel.EditUserProfileBodySchema,
+        response: {
+          200: UserModel.EditUserProfileResponseSchema,
+          400: UserModel.ErrorResponseSchema,
+          401: UserModel.ErrorResponseSchema,
+          404: UserModel.ErrorResponseSchema,
+          500: UserModel.ErrorResponseSchema,
+        },
+        tags: ["user"],
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const { userId } = getAuth(request);
+        if (!userId) {
+          return reply
+            .code(401)
+            .send({ error: "Unauthorized", code: "UNAUTHORIZED" });
+        }
+        const result = await User.editProfile(userId, request.body as UserModel.EditUserProfileBody);
+        return reply.send(result);
+      } catch (error: any) {
+        logger.error("Error editing profile:", error);
+        if (error?.status) {
+          return reply.code(error.status).send({
+            error: error.message,
+            code: String(error.message).split("] ")[0].replace("[", ""),
+          });
+        }
+        return reply.code(500).send({
+          error: "Failed to edit profile",
+          code: "PROFILE_EDIT_FAILED",
+        });
+      }
+    }
+  )
+
+  // GET /user — requires auth
+  fastify.get(
+    "/profile",
+    {
+      schema: {
+        response: {
+          200: UserModel.GetUserProfileResponseSchema,
+          400: UserModel.ErrorResponseSchema,
+          401: UserModel.ErrorResponseSchema,
+          404: UserModel.ErrorResponseSchema,
+          500: UserModel.ErrorResponseSchema,
+        },
+        tags: ["user"],
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const { userId } = getAuth(request);
+        if (!userId) {
+          return reply
+            .code(401)
+            .send({ error: "Unauthorized", code: "UNAUTHORIZED" });
+        }
+        const result = await User.getUserProfile(userId);
+        return reply.send(result);
+      } catch (error: any) {
+        logger.error("Error getting user profile:", error);
+        if (error?.status) {
+          return reply.code(error.status).send({
+            error: error.message,
+            code: String(error.message).split("] ")[0].replace("[", ""),
+          });
+        }
+        return reply.code(500).send({
+          error: "Failed to get user profile",
+          code: "GET_PROFILE_ERROR",
+        });
+      }
+    }
+  )
 }

@@ -299,4 +299,106 @@ export abstract class User {
       );
     }
   }
+
+  /**
+   * Edit user profile fields (excluding email and phoneNumber)
+   * @param clerkId User's Clerk ID
+   * @param payload Partial profile fields to update
+   */
+  static async editProfile(
+    clerkId: string,
+    payload: UserModel.EditUserProfileBody,
+  ): Promise<UserModel.BasicSuccessResponse> {
+    try {
+      // Resolve internal user
+      const user = await db.query.users.findFirst({
+        where: eq(users.clerkId, clerkId),
+      });
+
+      if (!user) {
+        throw httpError(404, "[USER_NOT_FOUND] User not found");
+      }
+
+      // Build update set with only provided fields (exclude email and phoneNumber by design)
+      const allowedKeys: (keyof UserModel.EditUserProfileBody)[] = [
+        "firstName",
+        "lastName",
+        "imageUrl",
+        "gender",
+        "idNumber",
+        "taxNumber",
+        "dob",
+        "idType",
+        "role",
+        "position",
+      ];
+
+      const updateSet: Record<string, any> = {};
+      for (const key of allowedKeys) {
+        const value = (payload as any)[key];
+        if (typeof value !== "undefined") {
+          if (key === "dob") {
+            updateSet.dob = typeof value === "string" ? new Date(value) : value;
+          } else {
+            updateSet[key] = value;
+          }
+        }
+      }
+
+      if (Object.keys(updateSet).length === 0) {
+        return { success: true, message: "No changes to update" };
+      }
+
+      updateSet.updatedAt = new Date();
+
+      await db.update(users).set(updateSet).where(eq(users.id, user.id));
+
+      return { success: true, message: "Profile updated successfully" };
+    } catch (error: any) {
+      logger.error("Error updating user profile:", error);
+      if (error?.status) throw error;
+      throw httpError(500, "[UPDATE_PROFILE_ERROR] Failed to update profile");
+    }
+  }
+
+
+  /**
+   * Get user profile fields (excluding some fields)
+   * @param clerkId User's Clerk ID
+   */
+  static async getUserProfile(clerkId: string): Promise<UserModel.UserProfile> {
+    try {
+      // Resolve internal user
+      const user = await db.query.users.findFirst({
+        where: eq(users.clerkId, clerkId),
+      });
+
+      if (!user) {
+        throw httpError(404, "[USER_NOT_FOUND] User not found");
+      }
+
+      return {
+        success: true,
+        message: "User profile retrieved successfully",
+        data: {
+          firstName: user.firstName ?? undefined,
+          lastName: user.lastName ?? undefined,
+          imageUrl: user.imageUrl ?? undefined,
+          gender: user.gender ?? undefined,
+          idNumber: user.idNumber ?? undefined,
+          taxNumber: user.taxNumber ?? undefined,
+          dob: user.dob ?? undefined,
+          idType: (user.idType as UserModel.UserIdType) ?? undefined,
+          role: user.role ?? undefined,
+          position: user.position ?? undefined,
+          email: user.email ?? undefined,
+          phoneNumber: user.phoneNumber ?? undefined,
+        },
+      };
+    } catch (error: any) {
+      logger.error("Error getting user profile:", error);
+      if (error?.status) throw error;
+      throw httpError(500, "[GET_PROFILE_ERROR] Failed to get profile");
+    }
+  }
 }
