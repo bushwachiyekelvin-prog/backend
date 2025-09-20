@@ -14,6 +14,7 @@ import { rateLimitPlugin } from './plugins/rate-limit';
 import { userRoutes } from './routes/user.routes';
 import { businessRoutes } from './routes/business.routes';
 import { documentsRoutes } from './routes/documents.routes';
+import { businessDocumentsRoutes } from './routes/business-documents.routes';
 import requestId from 'fastify-request-id';
 import { rawBodyPlugin } from './plugins/raw-body';
 import { requestLoggerPlugin } from "./plugins/request-logger";
@@ -46,6 +47,7 @@ async function registerPlugins(fastify: FastifyInstance): Promise<void> {
   await fastify.register(userRoutes, { prefix: '/user' });
   await fastify.register(businessRoutes, { prefix: '/business' });
   await fastify.register(documentsRoutes, { prefix: '/documents' });
+  await fastify.register(businessDocumentsRoutes, { prefix: '/business' });
 
   fastify.get('/', async () => {
     return { message: 'Hello from Fastify!' };

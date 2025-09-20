@@ -120,7 +120,7 @@ export namespace BusinessModel {
       borrowingHistory: { type: "boolean" },
       amountBorrowed: { type: "number", minimum: 0 },
       loanStatus: { type: "string", minLength: 1, maxLength: 50 },
-      defaultReason: { type: "string", minLength: 1 },
+      defaultReason: { type: "string" },
       currency: { type: "string", minLength: 1, maxLength: 10 },
       ownershipPercentage: { type: "number", minimum: 0, maximum: 100 },
       ownershipType: { type: "string", minLength: 1, maxLength: 100 },
@@ -154,6 +154,7 @@ export namespace BusinessModel {
         },
         then: {
           required: ["defaultReason"],
+          properties: { defaultReason: { type: "string", minLength: 1 } },
         },
       },
     ],
@@ -189,7 +190,7 @@ export namespace BusinessModel {
     avgMonthlyTurnover?: number | null; // numeric in DB
     avgYearlyTurnover?: number | null; // numeric in DB
     borrowingHistory?: boolean | null;
-    amountBorrowed?: string | null; // numeric in DB
+    amountBorrowed?: number | null; // numeric in DB
     loanStatus?: string | null;
     defaultReason?: string | null;
     currency?: string | null;
@@ -225,7 +226,7 @@ export namespace BusinessModel {
       avgMonthlyTurnover: { type: "number" },
       avgYearlyTurnover: { type: "number" },
       borrowingHistory: { type: "boolean" },
-      amountBorrowed: { type: "string" },
+      amountBorrowed: { type: "number" },
       loanStatus: { type: "string" },
       defaultReason: { type: "string" },
       currency: { type: "string" },
