@@ -23,6 +23,7 @@ import { databasePlugin } from "./plugins/database";
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import { loanProductsRoutes } from './routes/loan-products.routes';
+import { investorOpportunitiesRoutes } from './routes/investor-opportunities.routes';
 
 config();
 
@@ -59,6 +60,7 @@ async function registerPlugins(fastify: FastifyInstance): Promise<void> {
   await fastify.register(documentsRoutes, { prefix: '/documents' });
   await fastify.register(businessDocumentsRoutes, { prefix: '/business' });
   await fastify.register(loanProductsRoutes, { prefix: '/loan-products' });
+  await fastify.register(investorOpportunitiesRoutes, { prefix: '/investor-opportunities' });
 
   fastify.get('/', async () => {
     return { message: 'Hello from Fastify!' };
