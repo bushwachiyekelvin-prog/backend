@@ -30,10 +30,36 @@ export async function businessDocumentsRoutes(fastify: FastifyInstance) {
           return reply.code(401).send({ error: "Unauthorized", code: "UNAUTHORIZED" });
         }
         const { id } = (request.params as any) || {};
+        // Debug: log incoming body shape to diagnose docType undefined issues
+        try {
+          const body: any = request.body;
+          const isArray = Array.isArray(body);
+          const keys = !isArray && body ? Object.keys(body) : undefined;
+          const firstItem = isArray && body && body.length ? body[0] : undefined;
+          const firstItemKeys = firstItem ? Object.keys(firstItem) : undefined;
+          const receivedDocType = isArray ? firstItem?.docType : body?.docType;
+          const contentType = (request.headers["content-type"] as string) || undefined;
+          logger.info(
+            "Incoming business documents upsert request body",
+            {
+              kind: "business-docs.upsert.request",
+              contentType,
+              rawBodyType: typeof body,
+              isArray,
+              keys,
+              firstItemKeys,
+              receivedDocType,
+            },
+          );
+        } catch (e) {
+          logger.warn("Failed to log business-docs upsert request body", { err: e });
+        }
+        // Quick fix: ensure the service always receives an array
+        const normalizedBody = Array.isArray(request.body) ? request.body : [request.body];
         const result = await BusinessDocuments.upsert(
           userId,
           id,
-          request.body as BusinessDocumentsModel.AddDocumentsBody,
+          normalizedBody as BusinessDocumentsModel.AddDocumentsBody,
         );
         return reply.send(result);
       } catch (error: any) {

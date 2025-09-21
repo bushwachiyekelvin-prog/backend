@@ -2,7 +2,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db } from "../../db";
 import { users } from "../../db/schema/users";
 import { businessProfiles } from "../../db/schema/businessProfiles";
-import { businessDocuments } from "../../db/schema/businessDocuments";
+import { businessDocuments, businessDocumentTypeEnum } from "../../db/schema/businessDocuments";
 import { BusinessDocumentsModel } from "./business-documents.model";
 import { logger } from "../../utils/logger";
 
@@ -50,6 +50,37 @@ export abstract class BusinessDocuments {
         docBankName: d.docBankName ?? null,
         docYear: typeof d.docYear === "number" ? d.docYear : null,
       }));
+
+      // Validate each item independently of route validation to avoid DB crashes
+      for (let i = 0; i < normalized.length; i++) {
+        const d = normalized[i];
+        const idxInfo = `item ${i}`;
+
+        // Required fields
+        if (!d.docType || !businessDocumentTypeEnum.enumValues.includes(d.docType as any)) {
+          const received = String(d.docType);
+          const allowed = businessDocumentTypeEnum.enumValues.join(", ");
+          throw httpError(
+            400,
+            `[INVALID_DOC_TYPE] ${idxInfo}: docType is required and must be a valid business document type. ` +
+              `received="${received}" (len=${received.length}); allowed=[${allowed}]`,
+          );
+        }
+        if (!d.docUrl || typeof d.docUrl !== "string" || d.docUrl.length === 0) {
+          throw httpError(400, `[INVALID_DOC_URL] ${idxInfo}: docUrl is required`);
+        }
+
+        // Conditional rules mirroring JSON Schema (defensive, in case service is called directly)
+        if (d.isPasswordProtected && (!d.docPassword || d.docPassword.length === 0)) {
+          throw httpError(400, `[INVALID_DOC_PASSWORD] ${idxInfo}: docPassword is required when isPasswordProtected is true`);
+        }
+        if (d.docType === "audited_financial_statements" && d.docYear === null) {
+          throw httpError(400, `[INVALID_DOC_YEAR] ${idxInfo}: docYear is required for audited_financial_statements`);
+        }
+        if (d.docType === "annual_bank_statement" && (d.docYear === null || d.docBankName === null)) {
+          throw httpError(400, `[INVALID_BANK_STATEMENT] ${idxInfo}: docYear and docBankName are required for annual_bank_statement`);
+        }
+      }
 
       await db.transaction(async (tx) => {
         for (const d of normalized) {
