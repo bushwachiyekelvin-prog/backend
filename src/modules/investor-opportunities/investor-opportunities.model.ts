@@ -97,4 +97,22 @@ export namespace InvestorOpportunitiesModel {
     required: ["success", "message", "data"],
     additionalProperties: true,
   } as const;
+
+  // Bookmarks
+  export interface ListBookmarkedInvestorOpportunitiesResponse {
+    success: boolean;
+    message: string;
+    data: InvestorOpportunityItem[];
+  }
+
+  export const ListBookmarkedInvestorOpportunitiesResponseSchema = {
+    type: "object",
+    properties: {
+      success: { type: "boolean" },
+      message: { type: "string" },
+      data: { type: "array", items: InvestorOpportunityItemSchema },
+    },
+    required: ["success", "message", "data"],
+    additionalProperties: true,
+  } as const;
 }

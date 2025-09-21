@@ -3,6 +3,8 @@ import { db } from "../../db";
 import { investorOpportunities } from "../../db/schema/investorOpportunities";
 import { InvestorOpportunitiesModel } from "./investor-opportunities.model";
 import { logger } from "../../utils/logger";
+import { users } from "../../db/schema/users";
+import { investorOpportunityBookmarks } from "../../db/schema/investorOpportunityBookmarks";
 
 function httpError(status: number, message: string) {
   const err: any = new Error(message);
@@ -163,6 +165,99 @@ export abstract class InvestorOpportunitiesService {
       logger.error("Error deleting investor opportunity:", error);
       if (error?.status) throw error;
       throw httpError(500, "[DELETE_INVESTOR_OPPORTUNITY_ERROR] Failed to delete investor opportunity");
+    }
+  }
+
+  // ------------------------------------------------------------
+  // Bookmarks
+  // ------------------------------------------------------------
+  static async bookmark(
+    clerkId: string,
+    id: string,
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      if (!clerkId) throw httpError(401, "[UNAUTHORIZED] Missing user context");
+
+      // Resolve internal user id
+      const user = await db.query.users.findFirst({ where: eq(users.clerkId, clerkId) });
+      if (!user) throw httpError(404, "[USER_NOT_FOUND] User not found");
+
+      // Ensure opportunity exists and not deleted
+      const [existing] = await db
+        .select({ id: investorOpportunities.id })
+        .from(investorOpportunities)
+        .where(and(eq(investorOpportunities.id, id), isNull(investorOpportunities.deletedAt)))
+        .limit(1);
+      if (!existing) throw httpError(404, "[INVESTOR_OPPORTUNITY_NOT_FOUND] Investor opportunity not found");
+
+      // Insert bookmark (idempotent via unique index)
+      await db
+        .insert(investorOpportunityBookmarks)
+        .values({ userId: user.id, opportunityId: id })
+        .onConflictDoNothing();
+
+      return { success: true, message: "Bookmarked successfully" };
+    } catch (error: any) {
+      logger.error("Error bookmarking investor opportunity:", error);
+      if (error?.status) throw error;
+      throw httpError(500, "[BOOKMARK_ERROR] Failed to bookmark investor opportunity");
+    }
+  }
+
+  static async unbookmark(
+    clerkId: string,
+    id: string,
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      if (!clerkId) throw httpError(401, "[UNAUTHORIZED] Missing user context");
+
+      const user = await db.query.users.findFirst({ where: eq(users.clerkId, clerkId) });
+      if (!user) throw httpError(404, "[USER_NOT_FOUND] User not found");
+
+      await db
+        .delete(investorOpportunityBookmarks)
+        .where(and(eq(investorOpportunityBookmarks.userId, user.id), eq(investorOpportunityBookmarks.opportunityId, id)));
+
+      return { success: true, message: "Unbookmarked successfully" };
+    } catch (error: any) {
+      logger.error("Error unbookmarking investor opportunity:", error);
+      if (error?.status) throw error;
+      throw httpError(500, "[UNBOOKMARK_ERROR] Failed to unbookmark investor opportunity");
+    }
+  }
+
+  static async listBookmarks(
+    clerkId: string,
+  ): Promise<InvestorOpportunitiesModel.ListBookmarkedInvestorOpportunitiesResponse> {
+    try {
+      if (!clerkId) throw httpError(401, "[UNAUTHORIZED] Missing user context");
+
+      const user = await db.query.users.findFirst({ where: eq(users.clerkId, clerkId) });
+      if (!user) throw httpError(404, "[USER_NOT_FOUND] User not found");
+
+      // Join bookmarks -> opportunities and filter out deleted
+      const rows = await db
+        .select()
+        .from(investorOpportunities)
+        .innerJoin(
+          investorOpportunityBookmarks,
+          eq(investorOpportunityBookmarks.opportunityId, investorOpportunities.id),
+        )
+        .where(
+          and(
+            eq(investorOpportunityBookmarks.userId, user.id),
+            isNull(investorOpportunities.deletedAt),
+          ),
+        );
+
+      // rows is array of { investor_opportunities: ..., investor_opportunity_bookmarks: ... }
+      const items = rows.map((r: any) => mapRow(r.investor_opportunities ?? r.investorOpportunities ?? r["investor_opportunities"] ?? r["investorOpportunities"]));
+
+      return { success: true, message: "Bookmarked investor opportunities retrieved successfully", data: items };
+    } catch (error: any) {
+      logger.error("Error listing bookmarked investor opportunities:", error);
+      if (error?.status) throw error;
+      throw httpError(500, "[LIST_BOOKMARKS_ERROR] Failed to list bookmarked investor opportunities");
     }
   }
 }
