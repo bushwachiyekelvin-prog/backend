@@ -20,6 +20,9 @@ import { rawBodyPlugin } from './plugins/raw-body';
 import { requestLoggerPlugin } from "./plugins/request-logger";
 import { swaggerPlugin } from "./plugins/swagger";
 import { databasePlugin } from "./plugins/database";
+import Ajv from 'ajv';
+import addFormats from 'ajv-formats';
+import { loanProductsRoutes } from './routes/loan-products.routes';
 
 config();
 
@@ -32,6 +35,13 @@ const app: FastifyInstance = Fastify({
 
 async function registerPlugins(fastify: FastifyInstance): Promise<void> {
   fastify.setErrorHandler(errorHandler);
+
+  // Configure Ajv with $data support and formats for JSON schema validation
+  const ajv = new Ajv({ allErrors: true, $data: true, removeAdditional: false });
+  addFormats(ajv);
+  fastify.setValidatorCompiler(({ schema /*, method, url, httpPart */ }) => {
+    return ajv.compile(schema as any);
+  });
 
   await fastify.register(requestId);
   await fastify.register(rawBodyPlugin);
@@ -48,6 +58,7 @@ async function registerPlugins(fastify: FastifyInstance): Promise<void> {
   await fastify.register(businessRoutes, { prefix: '/business' });
   await fastify.register(documentsRoutes, { prefix: '/documents' });
   await fastify.register(businessDocumentsRoutes, { prefix: '/business' });
+  await fastify.register(loanProductsRoutes, { prefix: '/loan-products' });
 
   fastify.get('/', async () => {
     return { message: 'Hello from Fastify!' };
