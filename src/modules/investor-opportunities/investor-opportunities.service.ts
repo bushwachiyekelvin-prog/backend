@@ -1,10 +1,10 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "../../db";
-import { investorOpportunities } from "../../db/schema/investorOpportunities";
+import { investorOpportunities } from "../../db/schema";
 import { InvestorOpportunitiesModel } from "./investor-opportunities.model";
 import { logger } from "../../utils/logger";
-import { users } from "../../db/schema/users";
-import { investorOpportunityBookmarks } from "../../db/schema/investorOpportunityBookmarks";
+import { users } from "../../db/schema";
+import { investorOpportunityBookmarks } from "../../db/schema";
 
 function httpError(status: number, message: string) {
   const err: any = new Error(message);
