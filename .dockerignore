@@ -24,4 +24,4 @@ yarn-error.log*
 pnpm-debug.log*
 
 # Drizzle generated artifacts (optional to exclude)
-drizzle/
+# drizzle/  # Commented out - we need migration files for build

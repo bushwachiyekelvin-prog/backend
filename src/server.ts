@@ -1,5 +1,5 @@
 /**
- * Fastify server entry point (flattened structure)
+ * Fastify server entry point - consolidated from app.ts, index.ts, and server.ts
  */
 import 'dotenv/config';
 import Fastify, { FastifyInstance } from 'fastify';
@@ -34,11 +34,11 @@ const app: FastifyInstance = Fastify({
   logger: true,
 });
 
-async function registerPlugins(fastify: FastifyInstance): Promise<void> {
+export async function registerPlugins(fastify: FastifyInstance): Promise<void> {
   fastify.setErrorHandler(errorHandler);
 
   // Configure Ajv with $data support and formats for JSON schema validation
-  const ajv = new Ajv({ allErrors: true, $data: true, removeAdditional: false });
+  const ajv = new Ajv({ allErrors: true, $data: true, removeAdditional: false, strict: false });
   addFormats(ajv);
   fastify.setValidatorCompiler(({ schema /*, method, url, httpPart */ }) => {
     return ajv.compile(schema as any);
@@ -118,5 +118,7 @@ export async function startServer(): Promise<FastifyInstance> {
 export { app };
 
 // Start the server when this module is executed directly
-// This ensures `bun run src/server.ts` boots the server.
-void startServer();
+// This works for both development (`bun run src/server.ts`) and production (`bun run dist/server.js`)
+if (import.meta.main) {
+  void startServer();
+}

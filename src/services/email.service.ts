@@ -2,6 +2,11 @@ import { Resend } from 'resend';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { logger } from '../utils/logger';
+import { config } from "dotenv";
+
+config({
+  path: ".env.local"
+})
 
 export interface WelcomeEmailData {
   firstName: string;

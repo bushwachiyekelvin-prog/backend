@@ -1,0 +1,158 @@
+import { and, eq, isNull } from "drizzle-orm";
+import { db } from "../../db";
+import { users } from "../../db/schema/users";
+import { businessProfiles } from "../../db/schema/businessProfiles";
+import { businessDocuments, businessDocumentTypeEnum } from "../../db/schema/businessDocuments";
+import { logger } from "../../utils/logger";
+// Lightweight HTTP error helper compatible with our route error handling
+function httpError(status, message) {
+    const err = new Error(message);
+    err.status = status;
+    return err;
+}
+export class BusinessDocuments {
+    /**
+     * Upsert one or more business documents for a business owned by the current user.
+     * If a document with the same composite keys (businessId, docType, docYear, docBankName)
+     * exists and is active, it will be updated, else inserted.
+     */
+    static async upsert(clerkId, businessId, input) {
+        try {
+            if (!clerkId)
+                throw httpError(401, "[UNAUTHORIZED] Missing user context");
+            // Resolve internal user by clerkId
+            const user = await db.query.users.findFirst({ where: eq(users.clerkId, clerkId) });
+            if (!user)
+                throw httpError(404, "[USER_NOT_FOUND] User not found");
+            // Ensure business exists and belongs to the user
+            const biz = await db.query.businessProfiles.findFirst({
+                where: and(eq(businessProfiles.id, businessId), eq(businessProfiles.userId, user.id)),
+                columns: { id: true },
+            });
+            if (!biz)
+                throw httpError(404, "[BUSINESS_NOT_FOUND] Business not found");
+            // Normalize to array
+            const docsArray = Array.isArray(input) ? input : [input];
+            // Coerce: ensure boolean default
+            const normalized = docsArray.map((d) => ({
+                docType: d.docType,
+                docUrl: d.docUrl,
+                isPasswordProtected: !!d.isPasswordProtected,
+                docPassword: d.docPassword ?? null,
+                docBankName: d.docBankName ?? null,
+                docYear: typeof d.docYear === "number" ? d.docYear : null,
+            }));
+            // Validate each item independently of route validation to avoid DB crashes
+            for (let i = 0; i < normalized.length; i++) {
+                const d = normalized[i];
+                const idxInfo = `item ${i}`;
+                // Required fields
+                if (!d.docType || !businessDocumentTypeEnum.enumValues.includes(d.docType)) {
+                    const received = String(d.docType);
+                    const allowed = businessDocumentTypeEnum.enumValues.join(", ");
+                    throw httpError(400, `[INVALID_DOC_TYPE] ${idxInfo}: docType is required and must be a valid business document type. ` +
+                        `received="${received}" (len=${received.length}); allowed=[${allowed}]`);
+                }
+                if (!d.docUrl || typeof d.docUrl !== "string" || d.docUrl.length === 0) {
+                    throw httpError(400, `[INVALID_DOC_URL] ${idxInfo}: docUrl is required`);
+                }
+                // Conditional rules mirroring JSON Schema (defensive, in case service is called directly)
+                if (d.isPasswordProtected && (!d.docPassword || d.docPassword.length === 0)) {
+                    throw httpError(400, `[INVALID_DOC_PASSWORD] ${idxInfo}: docPassword is required when isPasswordProtected is true`);
+                }
+                if (d.docType === "audited_financial_statements" && d.docYear === null) {
+                    throw httpError(400, `[INVALID_DOC_YEAR] ${idxInfo}: docYear is required for audited_financial_statements`);
+                }
+                if (d.docType === "annual_bank_statement" && (d.docYear === null || d.docBankName === null)) {
+                    throw httpError(400, `[INVALID_BANK_STATEMENT] ${idxInfo}: docYear and docBankName are required for annual_bank_statement`);
+                }
+            }
+            await db.transaction(async (tx) => {
+                for (const d of normalized) {
+                    // Try to find existing active matching record by composite keys
+                    const existing = await tx.query.businessDocuments.findFirst({
+                        where: and(eq(businessDocuments.businessId, businessId), eq(businessDocuments.docType, d.docType), 
+                        // For nullable keys, equality with null won't match; handle by branches
+                        d.docYear === null
+                            ? isNull(businessDocuments.docYear)
+                            : eq(businessDocuments.docYear, d.docYear), d.docBankName === null
+                            ? isNull(businessDocuments.docBankName)
+                            : eq(businessDocuments.docBankName, d.docBankName), isNull(businessDocuments.deletedAt)),
+                        columns: { id: true },
+                    });
+                    if (existing) {
+                        await tx
+                            .update(businessDocuments)
+                            .set({
+                            docUrl: d.docUrl,
+                            isPasswordProtected: d.isPasswordProtected,
+                            docPassword: d.docPassword,
+                            docBankName: d.docBankName,
+                            docYear: d.docYear,
+                            updatedAt: new Date(),
+                        })
+                            .where(eq(businessDocuments.id, existing.id));
+                    }
+                    else {
+                        await tx.insert(businessDocuments).values({
+                            businessId,
+                            docType: d.docType,
+                            docUrl: d.docUrl,
+                            isPasswordProtected: d.isPasswordProtected,
+                            docPassword: d.docPassword,
+                            docBankName: d.docBankName,
+                            docYear: d.docYear,
+                        });
+                    }
+                }
+            });
+            return { success: true, message: "Business documents upserted successfully" };
+        }
+        catch (error) {
+            logger.error("Error upserting business documents:", error);
+            if (error?.status)
+                throw error;
+            throw httpError(500, "[UPSERT_BUSINESS_DOCS_ERROR] Failed to upsert business documents");
+        }
+    }
+    /**
+     * List all active business documents for a business owned by the current user
+     */
+    static async list(clerkId, businessId) {
+        try {
+            if (!clerkId)
+                throw httpError(401, "[UNAUTHORIZED] Missing user context");
+            const user = await db.query.users.findFirst({ where: eq(users.clerkId, clerkId) });
+            if (!user)
+                throw httpError(404, "[USER_NOT_FOUND] User not found");
+            const biz = await db.query.businessProfiles.findFirst({
+                where: and(eq(businessProfiles.id, businessId), eq(businessProfiles.userId, user.id)),
+                columns: { id: true },
+            });
+            if (!biz)
+                throw httpError(404, "[BUSINESS_NOT_FOUND] Business not found");
+            const rows = await db.query.businessDocuments.findMany({
+                where: and(eq(businessDocuments.businessId, businessId), isNull(businessDocuments.deletedAt)),
+                columns: {
+                    docType: true,
+                    docUrl: true,
+                    isPasswordProtected: true,
+                    docPassword: true,
+                    docBankName: true,
+                    docYear: true,
+                },
+            });
+            return {
+                success: true,
+                message: "Business documents retrieved successfully",
+                data: rows,
+            };
+        }
+        catch (error) {
+            logger.error("Error listing business documents:", error);
+            if (error?.status)
+                throw error;
+            throw httpError(500, "[LIST_BUSINESS_DOCS_ERROR] Failed to list business documents");
+        }
+    }
+}

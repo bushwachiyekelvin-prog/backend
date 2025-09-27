@@ -1,0 +1,104 @@
+import { getAuth } from "@clerk/fastify";
+import { logger } from "../utils/logger";
+import { BusinessDocuments } from "../modules/business-documents/business-documents.service";
+import { BusinessDocumentsModel } from "../modules/business-documents/business-documents.model";
+import { UserModel } from "../modules/user/user.model";
+export async function businessDocumentsRoutes(fastify) {
+    // POST /business/:id/documents — upsert one or many business documents
+    fastify.post("/:id/documents", {
+        schema: {
+            params: BusinessDocumentsModel.BusinessIdParamsSchema,
+            body: BusinessDocumentsModel.AddDocumentsBodySchema,
+            response: {
+                200: BusinessDocumentsModel.AddDocumentsResponseSchema,
+                400: UserModel.ErrorResponseSchema,
+                401: UserModel.ErrorResponseSchema,
+                404: UserModel.ErrorResponseSchema,
+                500: UserModel.ErrorResponseSchema,
+            },
+            tags: ["business-documents"],
+        },
+    }, async (request, reply) => {
+        try {
+            const { userId } = getAuth(request);
+            if (!userId) {
+                return reply.code(401).send({ error: "Unauthorized", code: "UNAUTHORIZED" });
+            }
+            const { id } = request.params || {};
+            // Debug: log incoming body shape to diagnose docType undefined issues
+            try {
+                const body = request.body;
+                const isArray = Array.isArray(body);
+                const keys = !isArray && body ? Object.keys(body) : undefined;
+                const firstItem = isArray && body && body.length ? body[0] : undefined;
+                const firstItemKeys = firstItem ? Object.keys(firstItem) : undefined;
+                const receivedDocType = isArray ? firstItem?.docType : body?.docType;
+                const contentType = request.headers["content-type"] || undefined;
+                logger.info("Incoming business documents upsert request body", {
+                    kind: "business-docs.upsert.request",
+                    contentType,
+                    rawBodyType: typeof body,
+                    isArray,
+                    keys,
+                    firstItemKeys,
+                    receivedDocType,
+                });
+            }
+            catch (e) {
+                logger.warn("Failed to log business-docs upsert request body", { err: e });
+            }
+            // Quick fix: ensure the service always receives an array
+            const normalizedBody = Array.isArray(request.body) ? request.body : [request.body];
+            const result = await BusinessDocuments.upsert(userId, id, normalizedBody);
+            return reply.send(result);
+        }
+        catch (error) {
+            logger.error("Error upserting business documents:", error);
+            if (error?.status) {
+                return reply.code(error.status).send({
+                    error: error.message,
+                    code: String(error.message).split("] ")[0].replace("[", ""),
+                });
+            }
+            return reply
+                .code(500)
+                .send({ error: "Failed to upsert business documents", code: "UPSERT_BUSINESS_DOCUMENTS_FAILED" });
+        }
+    });
+    // GET /business/:id/documents — list all active business documents
+    fastify.get("/:id/documents", {
+        schema: {
+            params: BusinessDocumentsModel.BusinessIdParamsSchema,
+            response: {
+                200: BusinessDocumentsModel.ListDocumentsResponseSchema,
+                400: UserModel.ErrorResponseSchema,
+                401: UserModel.ErrorResponseSchema,
+                404: UserModel.ErrorResponseSchema,
+                500: UserModel.ErrorResponseSchema,
+            },
+            tags: ["business-documents"],
+        },
+    }, async (request, reply) => {
+        try {
+            const { userId } = getAuth(request);
+            if (!userId) {
+                return reply.code(401).send({ error: "Unauthorized", code: "UNAUTHORIZED" });
+            }
+            const { id } = request.params || {};
+            const result = await BusinessDocuments.list(userId, id);
+            return reply.send(result);
+        }
+        catch (error) {
+            logger.error("Error listing business documents:", error);
+            if (error?.status) {
+                return reply.code(error.status).send({
+                    error: error.message,
+                    code: String(error.message).split("] ")[0].replace("[", ""),
+                });
+            }
+            return reply
+                .code(500)
+                .send({ error: "Failed to list business documents", code: "LIST_BUSINESS_DOCUMENTS_FAILED" });
+        }
+    });
+}
