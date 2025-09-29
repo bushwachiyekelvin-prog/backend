@@ -3,12 +3,16 @@ import { users } from "./users";
 import { personalDocuments } from "./personalDocuments";
 import { businessProfiles } from "./businessProfiles";
 import { businessDocuments } from "./businessDocuments";
+import { loanProducts } from "./loanProducts";
+import { loanApplications } from "./loanApplications";
+import { offerLetters } from "./offerLetters";
 import { investorOpportunities } from "./investorOpportunities";
 import { investorOpportunityBookmarks } from "./investorOpportunityBookmarks";
 
 export const usersRelations = relations(users, ({ many }) => ({
   personalDocuments: many(personalDocuments),
   businessProfiles: many(businessProfiles),
+  loanApplications: many(loanApplications),
   investorOpportunityBookmarks: many(investorOpportunityBookmarks),
 }));
 
@@ -25,6 +29,7 @@ export const businessProfilesRelations = relations(businessProfiles, ({ one, man
     references: [users.id],
   }),
   documents: many(businessDocuments),
+  loanApplications: many(loanApplications),
 }));
 
 export const businessDocumentsRelations = relations(businessDocuments, ({ one }) => ({
@@ -54,3 +59,33 @@ export const investorOpportunityBookmarksRelations = relations(
     }),
   }),
 );
+
+// Loan Products Relations
+export const loanProductsRelations = relations(loanProducts, ({ many }) => ({
+  loanApplications: many(loanApplications),
+}));
+
+// Loan Applications Relations
+export const loanApplicationsRelations = relations(loanApplications, ({ one, many }) => ({
+  user: one(users, {
+    fields: [loanApplications.userId],
+    references: [users.id],
+  }),
+  business: one(businessProfiles, {
+    fields: [loanApplications.businessId],
+    references: [businessProfiles.id],
+  }),
+  loanProduct: one(loanProducts, {
+    fields: [loanApplications.loanProductId],
+    references: [loanProducts.id],
+  }),
+  offerLetters: many(offerLetters),
+}));
+
+// Offer Letters Relations
+export const offerLettersRelations = relations(offerLetters, ({ one }) => ({
+  loanApplication: one(loanApplications, {
+    fields: [offerLetters.loanApplicationId],
+    references: [loanApplications.id],
+  }),
+}));

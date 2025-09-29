@@ -5,3 +5,6 @@ export * from "./schema/businessDocuments";
 export * from "./schema/relations";
 export * from "./schema/investorOpportunities"
 export * from "./schema/investorOpportunityBookmarks"
+export * from "./schema/loanApplications"
+export * from "./schema/loanProducts"
+export * from "./schema/offerLetters"

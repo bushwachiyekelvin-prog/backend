@@ -43,4 +43,5 @@ package-lock.json
 **/*.bun
 
 # drizzle orm
-/drizzledist/
+/drizzle
+dist/
