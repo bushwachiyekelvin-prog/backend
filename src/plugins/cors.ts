@@ -30,7 +30,7 @@ export const corsPlugin = fastifyPlugin(async function (fastify: FastifyInstance
       cb(null, false);
     },
     credentials: true,
-    methods: ['GET', 'PUT', 'POST', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'PUT', 'POST', 'DELETE', 'OPTIONS', "PATCH"],
     allowedHeaders: [
       'Content-Type',
       'Authorization',

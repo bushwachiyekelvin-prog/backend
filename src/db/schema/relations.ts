@@ -4,6 +4,7 @@ import { personalDocuments } from "./personalDocuments";
 import { businessProfiles } from "./businessProfiles";
 import { businessDocuments } from "./businessDocuments";
 import { loanProducts } from "./loanProducts";
+import { loanProductSnapshots } from "./loanProductSnapshots";
 import { loanApplications } from "./loanApplications";
 import { offerLetters } from "./offerLetters";
 import { investorOpportunities } from "./investorOpportunities";
@@ -63,6 +64,7 @@ export const investorOpportunityBookmarksRelations = relations(
 // Loan Products Relations
 export const loanProductsRelations = relations(loanProducts, ({ many }) => ({
   loanApplications: many(loanApplications),
+  productSnapshots: many(loanProductSnapshots),
 }));
 
 // Loan Applications Relations
@@ -79,6 +81,10 @@ export const loanApplicationsRelations = relations(loanApplications, ({ one, man
     fields: [loanApplications.loanProductId],
     references: [loanProducts.id],
   }),
+  productSnapshot: one(loanProductSnapshots, {
+    fields: [loanApplications.id],
+    references: [loanProductSnapshots.loanApplicationId],
+  }),
   offerLetters: many(offerLetters),
 }));
 
@@ -87,5 +93,17 @@ export const offerLettersRelations = relations(offerLetters, ({ one }) => ({
   loanApplication: one(loanApplications, {
     fields: [offerLetters.loanApplicationId],
     references: [loanApplications.id],
+  }),
+}));
+
+// Loan Product Snapshots Relations
+export const loanProductSnapshotsRelations = relations(loanProductSnapshots, ({ one }) => ({
+  loanApplication: one(loanApplications, {
+    fields: [loanProductSnapshots.loanApplicationId],
+    references: [loanApplications.id],
+  }),
+  loanProduct: one(loanProducts, {
+    fields: [loanProductSnapshots.loanProductId],
+    references: [loanProducts.id],
   }),
 }));

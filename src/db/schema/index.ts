@@ -4,6 +4,7 @@ export * from "./businessDocuments";
 export * from "./personalDocuments";
 export * from "./relations";
 export * from "./loanProducts";
+export * from "./loanProductSnapshots";
 export * from "./loanApplications";
 export * from "./offerLetters";
 export * from "./investorOpportunities";

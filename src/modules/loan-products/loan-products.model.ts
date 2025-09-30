@@ -5,6 +5,7 @@ import {
   interestRatePeriodEnum,
   repaymentFrequencyEnum,
   amortizationMethodEnum,
+  productStatusEnum,
 } from "../../db/schema/loanProducts";
 
 export namespace LoanProductsModel {
@@ -23,6 +24,10 @@ export namespace LoanProductsModel {
   export type RepaymentFrequency = (typeof loanProducts.$inferSelect)["repaymentFrequency"];
   export const AmortizationMethodEnum = amortizationMethodEnum.enumValues;
   export type AmortizationMethod = (typeof loanProducts.$inferSelect)["amortizationMethod"];
+
+  // Product status values derived from DB enum
+  export const ProductStatusEnum = productStatusEnum.enumValues;
+  export type ProductStatus = (typeof loanProducts.$inferSelect)["status"];
 
   // Create product input
   export interface CreateLoanProductBody {
@@ -48,6 +53,8 @@ export namespace LoanProductsModel {
     lateFeeFlat?: number; // optional flat amount
     prepaymentPenaltyRate?: number; // optional %
     gracePeriodDays?: number; // default 0
+    status?: ProductStatus; // default: draft
+    changeReason?: string; // Required for status changes
     isActive?: boolean;
   }
 
@@ -75,11 +82,35 @@ export namespace LoanProductsModel {
     lateFeeFlat?: number;
     prepaymentPenaltyRate?: number;
     gracePeriodDays?: number;
+    status?: ProductStatus;
+    changeReason?: string;
     isActive?: boolean;
   }
 
   // Params with :id
   export interface LoanProductIdParams { id: string; }
+
+  // Query parameters for listing products
+  export interface ListLoanProductsQuery {
+    page?: string;
+    limit?: string;
+    status?: ProductStatus;
+    includeArchived?: string;
+    currency?: string;
+    minAmount?: string;
+    maxAmount?: string;
+    minTerm?: string;
+    maxTerm?: string;
+    termUnit?: LoanTermUnit;
+    interestType?: InterestType;
+    ratePeriod?: InterestRatePeriod;
+    amortizationMethod?: AmortizationMethod;
+    repaymentFrequency?: RepaymentFrequency;
+    isActive?: string;
+    search?: string; // Search in name, description
+    sortBy?: "name" | "createdAt" | "updatedAt" | "interestRate" | "minAmount" | "maxAmount";
+    sortOrder?: "asc" | "desc";
+  }
 
   // JSON Schemas
   export const CreateLoanProductBodySchema = {
@@ -87,7 +118,7 @@ export namespace LoanProductsModel {
     additionalProperties: false,
     properties: {
       name: { type: "string", minLength: 1, maxLength: 150 },
-      slug: { type: "string", minLength: 1, maxLength: 180 },
+      slug: { type: "string" },
       imageUrl: { type: "string" },
       summary: { type: "string" },
       description: { type: "string" },
@@ -106,9 +137,11 @@ export namespace LoanProductsModel {
       processingFeeFlat: { type: "number", minimum: 0 },
       lateFeeRate: { type: "number", minimum: 0 },
       lateFeeFlat: { type: "number", minimum: 0 },
-      prepaymentPenaltyRate: { type: "number", minimum: 0 },
-      gracePeriodDays: { type: "integer", minimum: 0 },
-      isActive: { type: "boolean" },
+    prepaymentPenaltyRate: { type: "number", minimum: 0 },
+    gracePeriodDays: { type: "integer", minimum: 0 },
+    status: { type: "string", enum: ProductStatusEnum },
+    changeReason: { type: "string", minLength: 1, maxLength: 500 },
+    isActive: { type: "boolean" },
     },
     required: [
       "name",
@@ -174,6 +207,12 @@ export namespace LoanProductsModel {
     lateFeeFlat?: number | null;
     prepaymentPenaltyRate?: number | null;
     gracePeriodDays: number;
+    // Versioning fields
+    version: number;
+    status: ProductStatus;
+    changeReason?: string | null;
+    approvedBy?: string | null;
+    approvedAt?: string | null;
     isActive: boolean;
     createdAt?: string | null;
     updatedAt?: string | null;
@@ -205,6 +244,12 @@ export namespace LoanProductsModel {
       lateFeeFlat: { type: "number" },
       prepaymentPenaltyRate: { type: "number" },
       gracePeriodDays: { type: "integer" },
+      // Versioning fields
+      version: { type: "integer" },
+      status: { type: "string", enum: ProductStatusEnum },
+      changeReason: { type: "string" },
+      approvedBy: { type: "string" },
+      approvedAt: { type: "string" },
       isActive: { type: "boolean" },
       createdAt: { type: "string" },
       updatedAt: { type: "string" },
@@ -224,6 +269,8 @@ export namespace LoanProductsModel {
       "amortizationMethod",
       "repaymentFrequency",
       "gracePeriodDays",
+      "version",
+      "status",
       "isActive",
     ],
     additionalProperties: true,
@@ -233,6 +280,12 @@ export namespace LoanProductsModel {
     success: boolean;
     message: string;
     data: LoanProductItem[];
+    pagination?: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
   }
 
   export const ListLoanProductsResponseSchema = {
@@ -241,6 +294,16 @@ export namespace LoanProductsModel {
       success: { type: "boolean" },
       message: { type: "string" },
       data: { type: "array", items: LoanProductItemSchema },
+      pagination: {
+        type: "object",
+        properties: {
+          page: { type: "integer" },
+          limit: { type: "integer" },
+          total: { type: "integer" },
+          totalPages: { type: "integer" },
+        },
+        required: ["page", "limit", "total", "totalPages"],
+      },
     },
     required: ["success", "message", "data"],
     additionalProperties: true,

@@ -48,11 +48,50 @@ export async function loanProductsRoutes(fastify: FastifyInstance) {
     },
   );
 
-  // LIST loan products
+  // LIST loan products with optional filtering
   fastify.get(
     "/",
     {
       schema: {
+        querystring: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            // Pagination
+            page: { type: "string", pattern: "^[0-9]+$" },
+            limit: { type: "string", pattern: "^[0-9]+$" },
+            
+            // Status filtering
+            status: { type: "string", enum: LoanProductsModel.ProductStatusEnum },
+            includeArchived: { type: "string", enum: ["true", "false"] },
+            
+            // Currency and amount filtering
+            currency: { type: "string", minLength: 1 },
+            minAmount: { type: "string", pattern: "^[0-9]+(\\.[0-9]+)?$" },
+            maxAmount: { type: "string", pattern: "^[0-9]+(\\.[0-9]+)?$" },
+            
+            // Term filtering
+            minTerm: { type: "string", pattern: "^[0-9]+$" },
+            maxTerm: { type: "string", pattern: "^[0-9]+$" },
+            termUnit: { type: "string", enum: LoanProductsModel.LoanTermUnitEnum },
+            
+            // Interest and repayment filtering
+            interestType: { type: "string", enum: LoanProductsModel.InterestTypeEnum },
+            ratePeriod: { type: "string", enum: LoanProductsModel.InterestRatePeriodEnum },
+            amortizationMethod: { type: "string", enum: LoanProductsModel.AmortizationMethodEnum },
+            repaymentFrequency: { type: "string", enum: LoanProductsModel.RepaymentFrequencyEnum },
+            
+            // Active status
+            isActive: { type: "string", enum: ["true", "false"] },
+            
+            // Search
+            search: { type: "string", minLength: 1, maxLength: 100 },
+            
+            // Sorting
+            sortBy: { type: "string", enum: ["name", "createdAt", "updatedAt", "interestRate", "minAmount", "maxAmount"] },
+            sortOrder: { type: "string", enum: ["asc", "desc"] },
+          },
+        },
         response: {
           200: LoanProductsModel.ListLoanProductsResponseSchema,
           400: UserModel.ErrorResponseSchema,
@@ -69,7 +108,9 @@ export async function loanProductsRoutes(fastify: FastifyInstance) {
         if (!userId) {
           return reply.code(401).send({ error: "Unauthorized", code: "UNAUTHORIZED" });
         }
-        const result = await LoanProductsService.list(userId);
+        
+        const query = request.query as LoanProductsModel.ListLoanProductsQuery;
+        const result = await LoanProductsService.list(userId, query);
         return reply.send(result);
       } catch (error: any) {
         logger.error("Error listing loan products:", error);
@@ -207,6 +248,101 @@ export async function loanProductsRoutes(fastify: FastifyInstance) {
         return reply
           .code(500)
           .send({ error: "Failed to delete loan product", code: "DELETE_LOAN_PRODUCT_FAILED" });
+      }
+    },
+  );
+
+  // UPDATE product status
+  fastify.patch(
+    "/:id/status",
+    {
+      schema: {
+        params: { type: "object", properties: { id: { type: "string", minLength: 1 } }, required: ["id"], additionalProperties: false },
+        body: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            status: { type: "string", enum: LoanProductsModel.ProductStatusEnum },
+            changeReason: { type: "string", minLength: 1, maxLength: 500 },
+            approvedBy: { type: "string", minLength: 1 },
+          },
+          required: ["status", "changeReason", "approvedBy"],
+        },
+        response: {
+          200: LoanProductsModel.LoanProductItemSchema,
+          400: UserModel.ErrorResponseSchema,
+          401: UserModel.ErrorResponseSchema,
+          404: UserModel.ErrorResponseSchema,
+          500: UserModel.ErrorResponseSchema,
+        },
+        tags: ["loan-products"],
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const { userId } = getAuth(request);
+        if (!userId) {
+          return reply.code(401).send({ error: "Unauthorized", code: "UNAUTHORIZED" });
+        }
+        
+        const { id } = request.params as { id: string };
+        const { status, changeReason, approvedBy } = request.body as {
+          status: LoanProductsModel.ProductStatus;
+          changeReason: string;
+          approvedBy: string;
+        };
+        
+        const result = await LoanProductsService.updateStatus(userId, id, status, changeReason, approvedBy);
+        return reply.send(result);
+      } catch (error: any) {
+        logger.error("Error updating product status:", error);
+        if (error?.status) {
+          return reply.code(error.status).send({
+            error: error.message,
+            code: String(error.message).split("] ")[0].replace("[", ""),
+          });
+        }
+        return reply
+          .code(500)
+          .send({ error: "Failed to update product status", code: "UPDATE_PRODUCT_STATUS_FAILED" });
+      }
+    },
+  );
+
+  // GET available products for applications
+  fastify.get(
+    "/available",
+    {
+      schema: {
+        response: {
+          200: LoanProductsModel.ListLoanProductsResponseSchema,
+          400: UserModel.ErrorResponseSchema,
+          401: UserModel.ErrorResponseSchema,
+          500: UserModel.ErrorResponseSchema,
+        },
+        tags: ["loan-products"],
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const { userId } = getAuth(request);
+        if (!userId) {
+          return reply.code(401).send({ error: "Unauthorized", code: "UNAUTHORIZED" });
+        }
+        
+        const result = await LoanProductsService.getAvailableForApplications(userId);
+        return reply.send(result);
+      } catch (error: any) {
+        logger.error("Error getting available products:", error);
+        if (error?.status) {
+          return reply.code(error.status).send({
+            error: error.message,
+            code: String(error.message).split("] ")[0].replace("[", ""),
+          });
+        }
+        return reply
+          .code(500)
+          .send({ error: "Failed to get available products", code: "GET_AVAILABLE_PRODUCTS_FAILED" });
       }
     },
   );

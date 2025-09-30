@@ -7,6 +7,7 @@ import {
   offerLetters,
   users,
 } from "../../db/schema";
+import { loanProductSnapshots } from "../../db/schema/loanProductSnapshots";
 import { LoanApplicationsModel } from "./loan-applications.model";
 import { LoanApplicationsSchemas } from "./loan-applications.schemas";
 import { 
@@ -120,6 +121,42 @@ export abstract class LoanApplicationsService {
         .insert(loanApplications)
         .values(values)
         .returning();
+
+      // Create product snapshot for immutability
+      await db.insert(loanProductSnapshots).values({
+        loanApplicationId: row.id,
+        loanProductId: loanProduct.id,
+        productSnapshot: {
+          id: loanProduct.id,
+          name: loanProduct.name,
+          slug: loanProduct.slug,
+          imageUrl: loanProduct.imageUrl,
+          summary: loanProduct.summary,
+          description: loanProduct.description,
+          currency: loanProduct.currency,
+          minAmount: toNumber(loanProduct.minAmount),
+          maxAmount: toNumber(loanProduct.maxAmount),
+          minTerm: loanProduct.minTerm,
+          maxTerm: loanProduct.maxTerm,
+          termUnit: loanProduct.termUnit,
+          interestRate: toNumber(loanProduct.interestRate),
+          interestType: loanProduct.interestType,
+          ratePeriod: loanProduct.ratePeriod,
+          amortizationMethod: loanProduct.amortizationMethod,
+          repaymentFrequency: loanProduct.repaymentFrequency,
+          processingFeeFlat: toNumber(loanProduct.processingFeeFlat) ?? 0,
+          lateFeeRate: toNumber(loanProduct.lateFeeRate) ?? 0,
+          lateFeeFlat: toNumber(loanProduct.lateFeeFlat) ?? 0,
+          prepaymentPenaltyRate: toNumber(loanProduct.prepaymentPenaltyRate) ?? 0,
+          gracePeriodDays: loanProduct.gracePeriodDays ?? 0,
+          version: loanProduct.version ?? 1,
+          status: loanProduct.status ?? "active",
+          createdAt: loanProduct.createdAt?.toISOString() ?? new Date().toISOString(),
+          updatedAt: loanProduct.updatedAt?.toISOString() ?? new Date().toISOString(),
+        },
+        productVersion: String(loanProduct.version ?? 1),
+        snapshotReason: "application_creation",
+      });
 
       const application = mapLoanApplicationRow(row);
 

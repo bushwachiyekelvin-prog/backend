@@ -40,6 +40,13 @@ export const amortizationMethodEnum = pgEnum("amortization_method", [
   "reducing_balance",
 ]);
 
+// Enum for product status
+export const productStatusEnum = pgEnum("product_status", [
+  "draft",
+  "active",
+  "archived",
+]);
+
 /**
  * Loan products master table
  *
@@ -84,7 +91,12 @@ export const loanProducts = pgTable(
     prepaymentPenaltyRate: numeric("prepayment_penalty_rate", { precision: 7, scale: 4 }),
     gracePeriodDays: integer("grace_period_days").default(0).notNull(),
 
-    // Lifecycle
+    // Lifecycle and versioning (minimal compliance)
+    version: integer("version").default(1).notNull(),
+    status: productStatusEnum("status").default("draft").notNull(),
+    changeReason: text("change_reason"),
+    approvedBy: varchar("approved_by"),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
     isActive: boolean("is_active").default(true).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -99,6 +111,8 @@ export const loanProducts = pgTable(
       idxLoanProductsRepaymentFrequency: index("idx_loan_products_repayment_frequency").on(table.repaymentFrequency),
       idxLoanProductsAmortization: index("idx_loan_products_amortization").on(table.amortizationMethod),
       idxLoanProductsActive: index("idx_loan_products_active").on(table.isActive),
+      idxLoanProductsStatus: index("idx_loan_products_status").on(table.status),
+      idxLoanProductsVersion: index("idx_loan_products_version").on(table.version),
       idxLoanProductsDeletedAt: index("idx_loan_products_deleted_at").on(table.deletedAt),
       idxLoanProductsCreatedAt: index("idx_loan_products_created_at").on(table.createdAt),
     };
