@@ -115,8 +115,8 @@ export abstract class LoanApplicationsService {
         currency: body.currency,
         purpose: body.purpose as any,
         purposeDescription: body.purposeDescription ?? null,
-        status: "submitted" as any,
-        submittedAt: new Date(),
+        status: "draft" as any,
+        submittedAt: null,
         isBusinessLoan: body.isBusinessLoan,
       };
 
@@ -447,10 +447,10 @@ export abstract class LoanApplicationsService {
           "[LOAN_APPLICATION_NOT_FOUND] Loan application not found",
         );
 
-      if (existing.status !== "submitted") {
+      if (existing.status !== "draft" && existing.status !== "submitted") {
         throw httpError(
           400,
-          "[INVALID_STATUS] Only submitted applications can be updated",
+          "[INVALID_STATUS] Only draft and submitted applications can be updated",
         );
       }
 
@@ -639,7 +639,7 @@ export abstract class LoanApplicationsService {
         await SnapshotService.createSnapshot({
           loanApplicationId: id,
           createdBy: user.id,
-          approvalStage: "loan_approved",
+          approvalStage: "loan_approval",
         });
 
         // Log snapshot creation

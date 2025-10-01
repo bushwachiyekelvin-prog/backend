@@ -6,6 +6,7 @@ import { loanProducts } from "./loanProducts";
 
 // Enum for loan application status
 export const loanApplicationStatusEnum = pgEnum("loan_application_status", [
+  "draft",
   "submitted",
   "under_review",
   "approved",

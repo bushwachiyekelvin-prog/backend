@@ -59,27 +59,9 @@ export abstract class Documents {
         for (const d of toUpdate) {
           const existingDoc = existing.find((e) => e.docType === d.docType);
           
-          // Log document update to audit trail
-          await AuditTrailService.logAction({
-            loanApplicationId: user.id, // Using userId as loanApplicationId for personal documents
-            userId: user.id,
-            action: "documents_updated",
-            reason: "Personal document updated",
-            details: `Personal document ${d.docType} updated for user ${user.id}`,
-            beforeData: {
-              docType: d.docType,
-              docUrl: existingDoc?.docUrl,
-            },
-            afterData: {
-              docType: d.docType,
-              docUrl: d.docUrl,
-            },
-            metadata: {
-              userId: user.id,
-              documentType: d.docType,
-              operation: "update",
-            },
-          });
+          // Note: Audit trail logging for standalone document uploads is skipped
+          // as it requires a loanApplicationId. Document uploads are logged when
+          // they're part of a loan application workflow.
 
           await tx
             .update(personalDocuments)
@@ -95,26 +77,9 @@ export abstract class Documents {
 
         // Perform bulk insert for new types
         if (toInsert.length > 0) {
-          // Log document creation to audit trail
-          for (const d of toInsert) {
-            await AuditTrailService.logAction({
-              loanApplicationId: user.id, // Using userId as loanApplicationId for personal documents
-              userId: user.id,
-              action: "documents_uploaded",
-              reason: "Personal document uploaded",
-              details: `Personal document ${d.docType} uploaded for user ${user.id}`,
-              beforeData: {},
-              afterData: {
-                docType: d.docType,
-                docUrl: d.docUrl,
-              },
-              metadata: {
-                userId: user.id,
-                documentType: d.docType,
-                operation: "create",
-              },
-            });
-          }
+          // Note: Audit trail logging for standalone document uploads is skipped
+          // as it requires a loanApplicationId. Document uploads are logged when
+          // they're part of a loan application workflow.
 
           await tx.insert(personalDocuments).values(
             toInsert.map((d) => ({
@@ -194,26 +159,9 @@ export abstract class Documents {
         isRequired: true,
       });
 
-      // Log document request creation to audit trail
-      await AuditTrailService.logAction({
-        loanApplicationId: user.id,
-        userId: user.id,
-        action: "document_request_created",
-        reason: "Document request created for personal documents",
-        details: `Document request created for ${input.documentType} for user ${user.id}`,
-        beforeData: {},
-        afterData: {
-          requestId: request.id,
-          documentType: input.documentType,
-          reason: input.reason,
-          dueDate: input.dueDate,
-        },
-        metadata: {
-          userId: user.id,
-          documentType: input.documentType,
-          requestId: request.id,
-        },
-      });
+      // Note: Audit trail logging skipped for standalone document requests
+      // Document requests should be created in the context of a loan application
+      // where the loanApplicationId is available for audit trail logging
 
       return {
         success: true,
@@ -253,28 +201,9 @@ export abstract class Documents {
         fulfilledWith: "personal_document_upload", // Placeholder for document ID
       });
 
-      // Log document request fulfillment to audit trail
-      await AuditTrailService.logAction({
-        loanApplicationId: user.id,
-        userId: user.id,
-        action: "document_request_fulfilled",
-        reason: "Document request fulfilled",
-        details: `Document request ${requestId} fulfilled for user ${user.id}`,
-        beforeData: {
-          requestId,
-          status: "pending",
-        },
-        afterData: {
-          requestId,
-          status: "fulfilled",
-          documentType: Array.isArray(documentData) ? documentData[0]?.docType : documentData.docType,
-        },
-        metadata: {
-          userId: user.id,
-          requestId,
-          documentType: Array.isArray(documentData) ? documentData[0]?.docType : documentData.docType,
-        },
-      });
+      // Note: Audit trail logging skipped for standalone document request fulfillment
+      // Document request fulfillment should be tracked in the context of a loan application
+      // where the loanApplicationId is available for audit trail logging
 
       return {
         success: true,

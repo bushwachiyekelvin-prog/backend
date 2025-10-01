@@ -29,7 +29,7 @@ export const loanApplicationSnapshots = pgTable(
     snapshotData: text("snapshot_data").notNull(), // JSON string containing complete state
     
     // Approval stage
-    approvalStage: varchar("approval_stage", { length: 50 }).notNull().default("loan_approved"),
+    approvalStage: varchar("approval_stage", { length: 50 }).notNull().default("loan_approval"),
     
     // Timestamp
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

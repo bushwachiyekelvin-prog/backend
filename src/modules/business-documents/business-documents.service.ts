@@ -104,33 +104,8 @@ export abstract class BusinessDocuments {
           });
 
           if (existing) {
-            // Log document update to audit trail
-            await AuditTrailService.logAction({
-              loanApplicationId: businessId, // Using businessId as loanApplicationId for business documents
-              userId: user.id,
-              action: "documents_updated",
-              reason: "Business document updated",
-              details: `Business document ${d.docType} updated for business ${businessId}`,
-              beforeData: {
-                docType: d.docType,
-                docUrl: existing.docUrl,
-                isPasswordProtected: existing.isPasswordProtected,
-                docBankName: existing.docBankName,
-                docYear: existing.docYear,
-              },
-              afterData: {
-                docType: d.docType,
-                docUrl: d.docUrl,
-                isPasswordProtected: d.isPasswordProtected,
-                docBankName: d.docBankName,
-                docYear: d.docYear,
-              },
-              metadata: {
-                businessId,
-                documentType: d.docType,
-                operation: "update",
-              },
-            });
+            // Note: Audit trail logging skipped for standalone business document updates
+            // Business documents are logged when they're part of a loan application workflow
 
             await tx
               .update(businessDocuments)
@@ -144,27 +119,8 @@ export abstract class BusinessDocuments {
               })
               .where(eq(businessDocuments.id, existing.id));
           } else {
-            // Log document creation to audit trail
-            await AuditTrailService.logAction({
-              loanApplicationId: businessId, // Using businessId as loanApplicationId for business documents
-              userId: user.id,
-              action: "documents_uploaded",
-              reason: "Business document uploaded",
-              details: `Business document ${d.docType} uploaded for business ${businessId}`,
-              beforeData: {},
-              afterData: {
-                docType: d.docType,
-                docUrl: d.docUrl,
-                isPasswordProtected: d.isPasswordProtected,
-                docBankName: d.docBankName,
-                docYear: d.docYear,
-              },
-              metadata: {
-                businessId,
-                documentType: d.docType,
-                operation: "create",
-              },
-            });
+            // Note: Audit trail logging skipped for standalone business document creation
+            // Business documents are logged when they're part of a loan application workflow
 
             await tx.insert(businessDocuments).values({
               businessId,
@@ -269,26 +225,8 @@ export abstract class BusinessDocuments {
         isRequired: true,
       });
 
-      // Log document request creation to audit trail
-      await AuditTrailService.logAction({
-        loanApplicationId: businessId,
-        userId: user.id,
-        action: "document_request_created",
-        reason: "Document request created for business documents",
-        details: `Document request created for ${input.documentType} for business ${businessId}`,
-        beforeData: {},
-        afterData: {
-          requestId: request.id,
-          documentType: input.documentType,
-          reason: input.reason,
-          dueDate: input.dueDate,
-        },
-        metadata: {
-          businessId,
-          documentType: input.documentType,
-          requestId: request.id,
-        },
-      });
+      // Note: Audit trail logging skipped for standalone document requests
+      // Document requests should be created in the context of a loan application
 
       return {
         success: true,
@@ -336,28 +274,8 @@ export abstract class BusinessDocuments {
         fulfilledWith: "business_document_upload", // Placeholder for document ID
       });
 
-      // Log document request fulfillment to audit trail
-      await AuditTrailService.logAction({
-        loanApplicationId: businessId,
-        userId: user.id,
-        action: "document_request_fulfilled",
-        reason: "Document request fulfilled",
-        details: `Document request ${requestId} fulfilled for business ${businessId}`,
-        beforeData: {
-          requestId,
-          status: "pending",
-        },
-        afterData: {
-          requestId,
-          status: "fulfilled",
-          documentType: Array.isArray(documentData) ? documentData[0]?.docType : documentData.docType,
-        },
-        metadata: {
-          businessId,
-          requestId,
-          documentType: Array.isArray(documentData) ? documentData[0]?.docType : documentData.docType,
-        },
-      });
+      // Note: Audit trail logging skipped for standalone document request fulfillment
+      // Document request fulfillment should be tracked in the context of a loan application
 
       return {
         success: true,

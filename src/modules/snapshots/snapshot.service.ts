@@ -173,7 +173,7 @@ export abstract class SnapshotService {
         metadata: {
           createdAt: new Date().toISOString(),
           createdBy: params.createdBy,
-          approvalStage: params.approvalStage || "loan_approved",
+          approvalStage: params.approvalStage || "loan_approval",
         },
       };
 
@@ -184,7 +184,7 @@ export abstract class SnapshotService {
           loanApplicationId: params.loanApplicationId,
           createdBy: params.createdBy,
           snapshotData: JSON.stringify(snapshotData),
-          approvalStage: params.approvalStage || "loan_approved",
+          approvalStage: params.approvalStage || "loan_approval",
         })
         .returning();
 
