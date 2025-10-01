@@ -75,7 +75,7 @@ Retrieves a specific loan product by its ID.
 
 ### 3. Create Loan Product
 
-**POST** `/loan-products`
+**POST** `/loan-products``
 
 Creates a new loan product in draft status.
 
