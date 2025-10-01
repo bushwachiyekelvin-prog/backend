@@ -26,6 +26,7 @@ import { loanProductsRoutes } from './routes/loan-products.routes';
 import { loanApplicationsRoutes } from './routes/loan-applications.routes';
 import { offerLettersRoutes } from './routes/offer-letters.routes';
 import { investorOpportunitiesRoutes } from './routes/investor-opportunities.routes';
+import { webhookRoutes } from './routes/webhooks.routes';
 import { ResponseCachingService } from './modules/response-caching/response-caching.service';
 
 config();
@@ -70,6 +71,7 @@ export async function registerPlugins(fastify: FastifyInstance): Promise<void> {
   await fastify.register(loanApplicationsRoutes, { prefix: '/loan-applications' });
   await fastify.register(offerLettersRoutes, { prefix: '/offer-letters' });
   await fastify.register(investorOpportunitiesRoutes, { prefix: '/investor-opportunities' });
+  await fastify.register(webhookRoutes, { prefix: '/webhooks' });
 
   fastify.get('/', async () => {
     return { message: 'Hello from Fastify!' };

@@ -4,6 +4,7 @@ import { loanApplications } from "../../db/schema/loanApplications";
 import { businessDocuments } from "../../db/schema/businessDocuments";
 import { personalDocuments } from "../../db/schema/personalDocuments";
 import { businessProfiles } from "../../db/schema/businessProfiles";
+import { offerLetters } from "../../db/schema/offerLetters";
 import { eq, desc } from "drizzle-orm";
 
 function httpError(status: number, message: string) {
@@ -23,6 +24,7 @@ export interface SnapshotData {
   businessProfile?: any;
   personalDocuments: any[];
   businessDocuments: any[];
+  offerLetters: any[];
   metadata: {
     createdAt: string;
     createdBy: string;
@@ -93,6 +95,12 @@ export abstract class SnapshotService {
           .from(businessDocuments)
           .where(eq(businessDocuments.businessId, application.businessId));
       }
+
+      // Get offer letters for this loan application
+      const offerLetterDocs = await db
+        .select()
+        .from(offerLetters)
+        .where(eq(offerLetters.loanApplicationId, params.loanApplicationId));
 
       // Prepare snapshot data
       const snapshotData: SnapshotData = {
@@ -169,6 +177,34 @@ export abstract class SnapshotService {
           docYear: doc.docYear,
           createdAt: doc.createdAt.toISOString(),
           updatedAt: doc.updatedAt.toISOString(),
+        })),
+        offerLetters: offerLetterDocs.map(letter => ({
+          id: letter.id,
+          loanApplicationId: letter.loanApplicationId,
+          createdBy: letter.createdBy,
+          offerNumber: letter.offerNumber,
+          version: letter.version,
+          recipientEmail: letter.recipientEmail,
+          recipientName: letter.recipientName,
+          offerAmount: letter.offerAmount,
+          offerTerm: letter.offerTerm,
+          interestRate: letter.interestRate,
+          currency: letter.currency,
+          specialConditions: letter.specialConditions,
+          requiresGuarantor: letter.requiresGuarantor,
+          requiresCollateral: letter.requiresCollateral,
+          status: letter.status,
+          docuSignEnvelopeId: letter.docuSignEnvelopeId,
+          docuSignStatus: letter.docuSignStatus,
+          docuSignTemplateId: letter.docuSignTemplateId,
+          offerLetterUrl: letter.offerLetterUrl,
+          signedDocumentUrl: letter.signedDocumentUrl,
+          sentAt: letter.sentAt?.toISOString() || null,
+          signedAt: letter.signedAt?.toISOString() || null,
+          declinedAt: letter.declinedAt?.toISOString() || null,
+          expiredAt: letter.expiredAt?.toISOString() || null,
+          createdAt: letter.createdAt.toISOString(),
+          updatedAt: letter.updatedAt.toISOString(),
         })),
         metadata: {
           createdAt: new Date().toISOString(),

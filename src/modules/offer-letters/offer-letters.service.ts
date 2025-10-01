@@ -10,6 +10,11 @@ import {
   toNumber 
 } from "./offer-letters.mapper";
 import { logger } from "../../utils/logger";
+import { docuSignService, CreateEnvelopeRequest } from "../../services/docusign.service";
+import { pdfGeneratorService, LoanOfferLetterData } from "../../services/pdf-generator.service";
+import { render } from "@react-email/render";
+import { OfferLetterEmail } from "../../templates/email/offer-letter";
+import { EmailService } from "../../services/email.service";
 
 function httpError(status: number, message: string) {
   const err: any = new Error(message);
@@ -41,8 +46,8 @@ export abstract class OfferLettersService {
       });
       if (!loanApplication) throw httpError(404, "[LOAN_APPLICATION_NOT_FOUND] Loan application not found");
 
-      if (loanApplication.status !== "approved") {
-        throw httpError(400, "[INVALID_STATUS] Only approved loan applications can have offer letters");
+      if (loanApplication.status !== "approved" && loanApplication.status !== "offer_letter_sent") {
+        throw httpError(400, "[INVALID_STATUS] Only approved or offer_letter_sent loan applications can have offer letters");
       }
 
       // Check if there's already an active offer letter for this application
@@ -142,31 +147,152 @@ export abstract class OfferLettersService {
         throw httpError(400, "[INVALID_STATUS] Only draft offer letters can be sent");
       }
 
-      // TODO: Integrate with DocuSign API
-      // For now, simulate the DocuSign integration
-      const envelopeId = `envelope_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const offerLetterUrl = `https://demo.docusign.net/signing/documents/${envelopeId}`;
+      // Get loan application details for email template
+      const loanApp = await db.query.loanApplications.findFirst({
+        where: eq(loanApplications.id, existing.loanApplicationId),
+        with: {
+          user: true,
+          business: true,
+        },
+      });
 
+      if (!loanApp) {
+        throw httpError(404, "[LOAN_APPLICATION_NOT_FOUND] Associated loan application not found");
+      }
+
+      // Generate PDF document for the offer letter
+      const offerLetterData: LoanOfferLetterData = {
+        offerNumber: existing.offerNumber,
+        loanAmount: existing.offerAmount,
+        currency: existing.currency,
+        interestRate: existing.interestRate,
+        offerTerm: existing.offerTerm,
+        expiresAt: existing.expiresAt,
+        recipientName: body.recipientName,
+        recipientEmail: body.recipientEmail,
+        specialConditions: existing.specialConditions || undefined,
+        requiresGuarantor: existing.requiresGuarantor,
+        requiresCollateral: existing.requiresCollateral,
+        businessName: loanApp.business?.name || undefined
+      };
+
+      const pdfBuffer = await pdfGeneratorService.generateOfferLetterPDF(offerLetterData);
+      const pdfBase64 = pdfBuffer.toString('base64');
+
+      // Create DocuSign envelope with the generated PDF
+      const envelopeRequest: CreateEnvelopeRequest = {
+        emailSubject: `Loan Offer Letter - ${existing.offerNumber}`,
+        emailBlurb: `Please review and sign your loan offer letter for ${existing.currency} ${existing.offerAmount}`,
+        documents: [
+          {
+            documentId: "1",
+            name: `Loan_Offer_Letter_${existing.offerNumber}.pdf`,
+            documentBase64: pdfBase64,
+            fileExtension: "pdf"
+          }
+        ],
+        recipients: {
+          signers: [
+            {
+              recipientId: "1",
+              email: body.recipientEmail,
+              name: body.recipientName,
+              routingOrder: "1",
+              tabs: {
+                signHereTabs: [
+                  {
+                    documentId: "1",
+                    recipientId: "1",
+                    pageNumber: "1",
+                    xPosition: "100",
+                    yPosition: "600" // Position signature field near the signature section
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        status: "created" // Create as draft first
+      };
+
+      // Create envelope in DocuSign
+      const envelope = await docuSignService.createEnvelope(envelopeRequest);
+      
+      // Send the envelope to make it available for signing
+      await docuSignService.sendEnvelope(envelope.envelopeId);
+      
+      // Try to get the signing URL, but provide fallback if it fails
+      let offerLetterUrl: string;
+      try {
+        const signingUrl = await docuSignService.getSigningUrl(
+          envelope.envelopeId, 
+          "1", // recipientId
+          `${process.env.APP_URL || 'http://localhost:3000'}/offer-letter-signed` // return URL after signing
+        );
+        offerLetterUrl = signingUrl;
+        logger.info(`DocuSign signing URL obtained: ${signingUrl}`);
+      } catch (error) {
+        logger.warn("Failed to get signing URL, using fallback URL:", error);
+        // Fallback to DocuSign console URL
+        offerLetterUrl = `https://demo.docusign.net/signing/documents/${envelope.envelopeId}`;
+        logger.info(`Using fallback URL: ${offerLetterUrl}`);
+      }
+      
+      logger.info(`DocuSign envelope created and sent successfully: ${envelope.envelopeId}`);
+      logger.info(`Offer letter URL: ${offerLetterUrl}`);
+
+      // Update offer letter with DocuSign details
       await db
         .update(offerLetters)
         .set({
-          docuSignEnvelopeId: envelopeId,
+          docuSignEnvelopeId: envelope.envelopeId,
           docuSignTemplateId: body.docuSignTemplateId,
-          docuSignStatus: "sent",
+          docuSignStatus: "sent", // Now sent and ready for signing
           offerLetterUrl,
           recipientEmail: body.recipientEmail,
           recipientName: body.recipientName,
-          status: "sent",
+          status: "sent", // Now sent
           sentAt: new Date(),
           updatedAt: new Date(),
         })
         .where(eq(offerLetters.id, id));
 
+      // Send email notification with offer letter details
+      try {
+        const emailHtml = await render(
+          OfferLetterEmail({
+            firstName: loanApp.user.firstName || "",
+            recipientName: body.recipientName,
+            loanAmount: existing.offerAmount,
+            currency: existing.currency,
+            loanTerm: existing.offerTerm,
+            interestRate: existing.interestRate,
+            offerLetterUrl,
+            expiresAt: existing.expiresAt.toISOString(),
+            specialConditions: existing.specialConditions || undefined,
+            requiresGuarantor: existing.requiresGuarantor,
+            requiresCollateral: existing.requiresCollateral,
+          })
+        );
+
+        const emailService = new EmailService();
+        await emailService.sendEmail({
+          to: body.recipientEmail,
+          subject: `Loan Offer Letter - ${existing.offerNumber}`,
+          html: emailHtml,
+        });
+
+        logger.info(`Offer letter email sent to ${body.recipientEmail} for envelope ${envelope.envelopeId}`);
+      } catch (emailError) {
+        logger.error("Failed to send offer letter email:", emailError);
+        // Don't fail the entire operation if email fails
+      }
+
       return {
         success: true,
         message: "Offer letter sent successfully",
         data: {
-          envelopeId,
+          envelopeId: envelope.envelopeId,
           offerLetterUrl,
         },
       };

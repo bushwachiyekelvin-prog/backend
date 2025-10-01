@@ -13,6 +13,9 @@ export type LoanApplicationStatus =
   | "submitted"
   | "under_review"
   | "approved"
+  | "offer_letter_sent"
+  | "offer_letter_signed"
+  | "offer_letter_declined"
   | "rejected"
   | "withdrawn"
   | "disbursed";
@@ -22,7 +25,10 @@ const STATUS_TRANSITIONS: Record<LoanApplicationStatus, LoanApplicationStatus[]>
   draft: ["submitted", "withdrawn"],
   submitted: ["under_review", "withdrawn"],
   under_review: ["approved", "rejected", "withdrawn"],
-  approved: ["disbursed", "withdrawn"],
+  approved: ["offer_letter_sent", "disbursed", "withdrawn"], // Can send offer letter or go directly to disbursement
+  offer_letter_sent: ["offer_letter_signed", "offer_letter_declined", "withdrawn"],
+  offer_letter_signed: ["disbursed", "withdrawn"],
+  offer_letter_declined: ["approved", "rejected", "withdrawn"], // Can resend offer or reject
   rejected: ["submitted", "withdrawn"], // Allow resubmission
   withdrawn: [], // Terminal state
   disbursed: [], // Terminal state

@@ -20,6 +20,7 @@ import { logger } from "../../utils/logger";
 import { AuditTrailService } from "../audit-trail/audit-trail.service";
 import { SnapshotService } from "../snapshots/snapshot.service";
 import { NotificationService } from "../notifications/notification.service";
+import { OfferLettersService } from "../offer-letters/offer-letters.service";
 
 function httpError(status: number, message: string) {
   const err: any = new Error(message);
@@ -593,6 +594,15 @@ export abstract class LoanApplicationsService {
         case "approved":
           updateSet.approvedAt = new Date();
           break;
+        case "offer_letter_sent":
+          // Offer letter sent timestamp will be set by offer letter service
+          break;
+        case "offer_letter_signed":
+          // Offer letter signed timestamp will be set by offer letter service
+          break;
+        case "offer_letter_declined":
+          // Offer letter declined timestamp will be set by offer letter service
+          break;
         case "disbursed":
           updateSet.disbursedAt = new Date();
           break;
@@ -650,9 +660,59 @@ export abstract class LoanApplicationsService {
           reason: "Immutable snapshot created at loan approval",
           details: "Complete application state captured for audit trail",
           metadata: {
-            approvalStage: "loan_approved",
+            approvalStage: "loan_approval",
           },
         });
+      }
+
+      // Create offer letter when status changes to offer_letter_sent
+      if (body.status === "offer_letter_sent") {
+        try {
+          // Get loan application details for offer letter creation
+          const loanApp = await db.query.loanApplications.findFirst({
+            where: eq(loanApplications.id, id),
+            with: {
+              business: true,
+              user: true,
+              loanProduct: true,
+            },
+          });
+
+          if (loanApp) {
+            // Create offer letter with basic details
+            await OfferLettersService.create(clerkId, {
+              loanApplicationId: id,
+              recipientEmail: loanApp.user.email,
+              recipientName: `${loanApp.user.firstName} ${loanApp.user.lastName}`,
+              offerAmount: Number(loanApp.loanAmount),
+              offerTerm: loanApp.loanTerm,
+              interestRate: Number(loanApp.loanProduct.interestRate),
+              currency: loanApp.currency,
+              specialConditions: undefined,
+              requiresGuarantor: false,
+              requiresCollateral: false,
+              expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+            });
+
+            // Log offer letter creation
+            await AuditTrailService.logAction({
+              loanApplicationId: id,
+              userId: user.id,
+              action: "offer_letter_created",
+              reason: "Offer letter created for approved loan application",
+              details: `Offer letter created for loan amount ${loanApp.currency} ${loanApp.loanAmount}`,
+              metadata: {
+                loanAmount: loanApp.loanAmount,
+                loanTerm: loanApp.loanTerm,
+                interestRate: loanApp.loanProduct.interestRate,
+                currency: loanApp.currency,
+              },
+            });
+          }
+        } catch (error) {
+          logger.error("Failed to create offer letter:", error);
+          // Don't fail the status update if offer letter creation fails
+        }
       }
 
       // Send status update notification

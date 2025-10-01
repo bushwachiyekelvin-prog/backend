@@ -22,6 +22,7 @@ export const auditActionEnum = pgEnum("audit_action", [
   "document_request_fulfilled",
   
   // Offer letter actions
+  "offer_letter_created",
   "offer_letter_generated",
   "offer_letter_sent",
   "offer_letter_signed",
@@ -31,6 +32,11 @@ export const auditActionEnum = pgEnum("audit_action", [
   // Status changes
   "status_updated",
   "snapshot_created",
+  
+  // Application status-specific actions
+  "application_offer_letter_sent",
+  "application_offer_letter_signed",
+  "application_offer_letter_declined",
 ]);
 
 /**

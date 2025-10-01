@@ -12,6 +12,7 @@ export const loanApplicationStatusEnum = pgEnum("loan_application_status", [
   "approved",
   "offer_letter_sent",
   "offer_letter_signed",
+  "offer_letter_declined",
   "disbursed",
   "rejected",
   "withdrawn",
