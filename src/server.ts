@@ -26,6 +26,7 @@ import { loanProductsRoutes } from './routes/loan-products.routes';
 import { loanApplicationsRoutes } from './routes/loan-applications.routes';
 import { offerLettersRoutes } from './routes/offer-letters.routes';
 import { investorOpportunitiesRoutes } from './routes/investor-opportunities.routes';
+import { ResponseCachingService } from './modules/response-caching/response-caching.service';
 
 config();
 
@@ -57,6 +58,10 @@ export async function registerPlugins(fastify: FastifyInstance): Promise<void> {
   await fastify.register(databasePlugin);
 
   await fastify.register(clerkPlugin);
+  
+  // Register response caching plugin
+  await fastify.register(ResponseCachingService.createPlugin());
+  
   await fastify.register(userRoutes, { prefix: '/user' });
   await fastify.register(businessRoutes, { prefix: '/business' });
   await fastify.register(documentsRoutes, { prefix: '/documents' });

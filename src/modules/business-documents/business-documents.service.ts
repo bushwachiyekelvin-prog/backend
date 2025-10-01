@@ -5,6 +5,8 @@ import { businessProfiles } from "../../db/schema/businessProfiles";
 import { businessDocuments, businessDocumentTypeEnum } from "../../db/schema/businessDocuments";
 import { BusinessDocumentsModel } from "./business-documents.model";
 import { logger } from "../../utils/logger";
+import { AuditTrailService } from "../audit-trail/audit-trail.service";
+import { DocumentRequestService } from "../document-requests/document-request.service";
 
 // Lightweight HTTP error helper compatible with our route error handling
 function httpError(status: number, message: string) {
@@ -98,10 +100,38 @@ export abstract class BusinessDocuments {
                 : (eq(businessDocuments.docBankName, d.docBankName) as any),
               isNull(businessDocuments.deletedAt),
             ),
-            columns: { id: true },
+            columns: { id: true, docUrl: true, isPasswordProtected: true, docPassword: true, docBankName: true, docYear: true },
           });
 
           if (existing) {
+            // Log document update to audit trail
+            await AuditTrailService.logAction({
+              loanApplicationId: businessId, // Using businessId as loanApplicationId for business documents
+              userId: user.id,
+              action: "documents_updated",
+              reason: "Business document updated",
+              details: `Business document ${d.docType} updated for business ${businessId}`,
+              beforeData: {
+                docType: d.docType,
+                docUrl: existing.docUrl,
+                isPasswordProtected: existing.isPasswordProtected,
+                docBankName: existing.docBankName,
+                docYear: existing.docYear,
+              },
+              afterData: {
+                docType: d.docType,
+                docUrl: d.docUrl,
+                isPasswordProtected: d.isPasswordProtected,
+                docBankName: d.docBankName,
+                docYear: d.docYear,
+              },
+              metadata: {
+                businessId,
+                documentType: d.docType,
+                operation: "update",
+              },
+            });
+
             await tx
               .update(businessDocuments)
               .set({
@@ -114,6 +144,28 @@ export abstract class BusinessDocuments {
               })
               .where(eq(businessDocuments.id, existing.id));
           } else {
+            // Log document creation to audit trail
+            await AuditTrailService.logAction({
+              loanApplicationId: businessId, // Using businessId as loanApplicationId for business documents
+              userId: user.id,
+              action: "documents_uploaded",
+              reason: "Business document uploaded",
+              details: `Business document ${d.docType} uploaded for business ${businessId}`,
+              beforeData: {},
+              afterData: {
+                docType: d.docType,
+                docUrl: d.docUrl,
+                isPasswordProtected: d.isPasswordProtected,
+                docBankName: d.docBankName,
+                docYear: d.docYear,
+              },
+              metadata: {
+                businessId,
+                documentType: d.docType,
+                operation: "create",
+              },
+            });
+
             await tx.insert(businessDocuments).values({
               businessId,
               docType: d.docType as any,
@@ -178,6 +230,143 @@ export abstract class BusinessDocuments {
       logger.error("Error listing business documents:", error);
       if (error?.status) throw error;
       throw httpError(500, "[LIST_BUSINESS_DOCS_ERROR] Failed to list business documents");
+    }
+  }
+
+  /**
+   * Create a document request for business documents
+   */
+  static async createDocumentRequest(
+    clerkId: string,
+    businessId: string,
+    input: {
+      documentType: string;
+      reason: string;
+      dueDate?: Date;
+      metadata?: Record<string, any>;
+    }
+  ): Promise<BusinessDocumentsModel.BasicSuccessResponse> {
+    try {
+      if (!clerkId) throw httpError(401, "[UNAUTHORIZED] Missing user context");
+
+      const user = await db.query.users.findFirst({ where: eq(users.clerkId, clerkId) });
+      if (!user) throw httpError(404, "[USER_NOT_FOUND] User not found");
+
+      // Ensure business exists and belongs to the user
+      const biz = await db.query.businessProfiles.findFirst({
+        where: and(eq(businessProfiles.id, businessId), eq(businessProfiles.userId, user.id)),
+        columns: { id: true },
+      });
+      if (!biz) throw httpError(404, "[BUSINESS_NOT_FOUND] Business not found");
+
+      // Create document request
+      const request = await DocumentRequestService.createRequest({
+        loanApplicationId: businessId, // Using businessId as loanApplicationId for business documents
+        requestedBy: user.id,
+        requestedFrom: user.id,
+        documentType: input.documentType as any,
+        description: input.reason,
+        isRequired: true,
+      });
+
+      // Log document request creation to audit trail
+      await AuditTrailService.logAction({
+        loanApplicationId: businessId,
+        userId: user.id,
+        action: "document_request_created",
+        reason: "Document request created for business documents",
+        details: `Document request created for ${input.documentType} for business ${businessId}`,
+        beforeData: {},
+        afterData: {
+          requestId: request.id,
+          documentType: input.documentType,
+          reason: input.reason,
+          dueDate: input.dueDate,
+        },
+        metadata: {
+          businessId,
+          documentType: input.documentType,
+          requestId: request.id,
+        },
+      });
+
+      return {
+        success: true,
+        message: "Document request created successfully",
+      };
+    } catch (error: any) {
+      logger.error("Error creating document request:", error);
+      if (error?.status) throw error;
+      throw httpError(500, "[CREATE_DOCUMENT_REQUEST_ERROR] Failed to create document request");
+    }
+  }
+
+  /**
+   * Fulfill a document request by uploading the requested document
+   */
+  static async fulfillDocumentRequest(
+    clerkId: string,
+    businessId: string,
+    requestId: string,
+    documentData: BusinessDocumentsModel.AddDocumentsBody
+  ): Promise<BusinessDocumentsModel.BasicSuccessResponse> {
+    try {
+      if (!clerkId) throw httpError(401, "[UNAUTHORIZED] Missing user context");
+
+      const user = await db.query.users.findFirst({ where: eq(users.clerkId, clerkId) });
+      if (!user) throw httpError(404, "[USER_NOT_FOUND] User not found");
+
+      // Ensure business exists and belongs to the user
+      const biz = await db.query.businessProfiles.findFirst({
+        where: and(eq(businessProfiles.id, businessId), eq(businessProfiles.userId, user.id)),
+        columns: { id: true },
+      });
+      if (!biz) throw httpError(404, "[BUSINESS_NOT_FOUND] Business not found");
+
+      // Get the document request
+      const request = await DocumentRequestService.getRequest(requestId);
+      if (!request) throw httpError(404, "[DOCUMENT_REQUEST_NOT_FOUND] Document request not found");
+
+      // Upload the document
+      await this.upsert(clerkId, businessId, documentData);
+
+      // Mark the request as fulfilled
+      await DocumentRequestService.fulfillRequest({
+        requestId,
+        fulfilledWith: "business_document_upload", // Placeholder for document ID
+      });
+
+      // Log document request fulfillment to audit trail
+      await AuditTrailService.logAction({
+        loanApplicationId: businessId,
+        userId: user.id,
+        action: "document_request_fulfilled",
+        reason: "Document request fulfilled",
+        details: `Document request ${requestId} fulfilled for business ${businessId}`,
+        beforeData: {
+          requestId,
+          status: "pending",
+        },
+        afterData: {
+          requestId,
+          status: "fulfilled",
+          documentType: Array.isArray(documentData) ? documentData[0]?.docType : documentData.docType,
+        },
+        metadata: {
+          businessId,
+          requestId,
+          documentType: Array.isArray(documentData) ? documentData[0]?.docType : documentData.docType,
+        },
+      });
+
+      return {
+        success: true,
+        message: "Document request fulfilled successfully",
+      };
+    } catch (error: any) {
+      logger.error("Error fulfilling document request:", error);
+      if (error?.status) throw error;
+      throw httpError(500, "[FULFILL_DOCUMENT_REQUEST_ERROR] Failed to fulfill document request");
     }
   }
 }

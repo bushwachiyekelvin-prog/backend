@@ -78,6 +78,11 @@ export const loanApplications = pgTable(
     // Rejection reason (if applicable)
     rejectionReason: text("rejection_reason"),
     
+    // Enhanced status tracking for audit trail
+    statusReason: text("status_reason"), // Reason for current status
+    lastUpdatedBy: varchar("last_updated_by", { length: 24 }).references(() => users.id), // User who last updated
+    lastUpdatedAt: timestamp("last_updated_at", { withTimezone: true }).defaultNow(), // When last updated
+    
     // Standard lifecycle fields
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -111,6 +116,10 @@ export const loanApplications = pgTable(
       idxLoanApplicationsUserDeleted: index("idx_loan_applications_user_deleted").on(table.userId, table.deletedAt),
       idxLoanApplicationsBusinessDeleted: index("idx_loan_applications_business_deleted").on(table.businessId, table.deletedAt),
       idxLoanApplicationsStatusDeleted: index("idx_loan_applications_status_deleted").on(table.status, table.deletedAt),
+      
+      // Enhanced status tracking indexes
+      idxLoanApplicationsLastUpdatedBy: index("idx_loan_applications_last_updated_by").on(table.lastUpdatedBy),
+      idxLoanApplicationsLastUpdatedAt: index("idx_loan_applications_last_updated_at").on(table.lastUpdatedAt),
     };
   },
 );

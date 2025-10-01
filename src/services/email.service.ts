@@ -19,6 +19,13 @@ export interface WelcomeEmailData {
   unsubscribeUrl?: string;
 }
 
+export interface EmailData {
+  to: string;
+  subject: string;
+  html: string;
+  from?: string;
+}
+
 export class EmailService {
   private resend: Resend;
   private welcomeTemplate: string;
@@ -80,6 +87,28 @@ export class EmailService {
       return { success: true, messageId: result.data?.id };
     } catch (error) {
       logger.error('Error sending welcome email:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  async sendEmail(data: EmailData): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    try {
+      const result = await this.resend.emails.send({
+        from: data.from || process.env.FROM_EMAIL || 'Melanin Kapital <nore@melaninkapital.com>',
+        to: [data.to],
+        subject: data.subject,
+        html: data.html,
+      });
+
+      if (result.error) {
+        logger.error('Failed to send email:', result.error);
+        return { success: false, error: result.error.message };
+      }
+
+      logger.info(`Email sent successfully to ${data.to}`, { messageId: result.data?.id });
+      return { success: true, messageId: result.data?.id };
+    } catch (error) {
+      logger.error('Error sending email:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }

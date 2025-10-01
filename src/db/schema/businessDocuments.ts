@@ -68,6 +68,17 @@ export const businessDocuments = pgTable(
         table.businessId,
         table.createdAt,
       ),
+      
+      // Additional performance indexes for common query patterns
+      idxBusinessDocsBusinessType: index("idx_business_docs_business_type").on(
+        table.businessId,
+        table.docType
+      ),
+      idxBusinessDocsBusinessTypeDeleted: index("idx_business_docs_business_type_deleted").on(
+        table.businessId,
+        table.docType,
+        table.deletedAt
+      ),
     };
   },
 );

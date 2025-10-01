@@ -144,6 +144,44 @@ export namespace LoanApplicationsModel {
   }
 
   // ========================================
+  // OFFER LETTER ITEM
+  // ========================================
+  export interface OfferLetterItem {
+    id: string;
+    loanApplicationId: string;
+    offerNumber: string;
+    version: number;
+    offerAmount: number;
+    offerTerm: number;
+    interestRate: number;
+    currency: string;
+    specialConditions?: string | null;
+    requiresGuarantor: boolean;
+    requiresCollateral: boolean;
+    docuSignEnvelopeId?: string | null;
+    docuSignStatus: string;
+    docuSignTemplateId?: string | null;
+    offerLetterUrl?: string | null;
+    signedDocumentUrl?: string | null;
+    recipientEmail: string;
+    recipientName: string;
+    sentAt?: string | null;
+    deliveredAt?: string | null;
+    viewedAt?: string | null;
+    signedAt?: string | null;
+    declinedAt?: string | null;
+    expiredAt?: string | null;
+    expiresAt: string;
+    reminderSentAt?: string | null;
+    status: string;
+    isActive: boolean;
+    createdBy?: string | null;
+    notes?: string | null;
+    createdAt: string;
+    updatedAt: string;
+  }
+
+  // ========================================
   // STATUS UPDATE TYPES
   // ========================================
   export interface UpdateApplicationStatusBody {

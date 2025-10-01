@@ -27,6 +27,17 @@ export const personalDocuments = pgTable(
         table.userId,
         table.createdAt,
       ),
+      
+      // Additional performance indexes for common query patterns
+      idxPersonalDocsUserType: index("idx_personal_docs_user_type").on(
+        table.userId,
+        table.docType
+      ),
+      idxPersonalDocsUserTypeDeleted: index("idx_personal_docs_user_type_deleted").on(
+        table.userId,
+        table.docType,
+        table.deletedAt
+      ),
     };
   },
 );

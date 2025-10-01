@@ -6,6 +6,9 @@ import { businessDocuments } from "./businessDocuments";
 import { loanProducts } from "./loanProducts";
 import { loanProductSnapshots } from "./loanProductSnapshots";
 import { loanApplications } from "./loanApplications";
+import { applicationAuditTrail } from "./applicationAuditTrail";
+import { loanApplicationSnapshots } from "./loanApplicationSnapshots";
+import { documentRequests } from "./documentRequests";
 import { offerLetters } from "./offerLetters";
 import { investorOpportunities } from "./investorOpportunities";
 import { investorOpportunityBookmarks } from "./investorOpportunityBookmarks";
@@ -14,6 +17,10 @@ export const usersRelations = relations(users, ({ many }) => ({
   personalDocuments: many(personalDocuments),
   businessProfiles: many(businessProfiles),
   loanApplications: many(loanApplications),
+  auditTrailEntries: many(applicationAuditTrail),
+  createdSnapshots: many(loanApplicationSnapshots),
+  requestedDocuments: many(documentRequests, { relationName: "requestedBy" }),
+  documentRequests: many(documentRequests, { relationName: "requestedFrom" }),
   investorOpportunityBookmarks: many(investorOpportunityBookmarks),
 }));
 
@@ -85,6 +92,13 @@ export const loanApplicationsRelations = relations(loanApplications, ({ one, man
     fields: [loanApplications.id],
     references: [loanProductSnapshots.loanApplicationId],
   }),
+  lastUpdatedByUser: one(users, {
+    fields: [loanApplications.lastUpdatedBy],
+    references: [users.id],
+  }),
+  auditTrail: many(applicationAuditTrail),
+  snapshots: many(loanApplicationSnapshots),
+  documentRequests: many(documentRequests),
   offerLetters: many(offerLetters),
 }));
 
@@ -105,5 +119,47 @@ export const loanProductSnapshotsRelations = relations(loanProductSnapshots, ({ 
   loanProduct: one(loanProducts, {
     fields: [loanProductSnapshots.loanProductId],
     references: [loanProducts.id],
+  }),
+}));
+
+// Application Audit Trail Relations
+export const applicationAuditTrailRelations = relations(applicationAuditTrail, ({ one }) => ({
+  loanApplication: one(loanApplications, {
+    fields: [applicationAuditTrail.loanApplicationId],
+    references: [loanApplications.id],
+  }),
+  user: one(users, {
+    fields: [applicationAuditTrail.userId],
+    references: [users.id],
+  }),
+}));
+
+// Loan Application Snapshots Relations
+export const loanApplicationSnapshotsRelations = relations(loanApplicationSnapshots, ({ one }) => ({
+  loanApplication: one(loanApplications, {
+    fields: [loanApplicationSnapshots.loanApplicationId],
+    references: [loanApplications.id],
+  }),
+  createdBy: one(users, {
+    fields: [loanApplicationSnapshots.createdBy],
+    references: [users.id],
+  }),
+}));
+
+// Document Requests Relations
+export const documentRequestsRelations = relations(documentRequests, ({ one }) => ({
+  loanApplication: one(loanApplications, {
+    fields: [documentRequests.loanApplicationId],
+    references: [loanApplications.id],
+  }),
+  requestedBy: one(users, {
+    fields: [documentRequests.requestedBy],
+    references: [users.id],
+    relationName: "requestedBy",
+  }),
+  requestedFrom: one(users, {
+    fields: [documentRequests.requestedFrom],
+    references: [users.id],
+    relationName: "requestedFrom",
   }),
 }));

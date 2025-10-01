@@ -17,6 +17,9 @@ import {
   toNumber
 } from "./loan-applications.mapper";
 import { logger } from "../../utils/logger";
+import { AuditTrailService } from "../audit-trail/audit-trail.service";
+import { SnapshotService } from "../snapshots/snapshot.service";
+import { NotificationService } from "../notifications/notification.service";
 
 function httpError(status: number, message: string) {
   const err: any = new Error(message);
@@ -121,6 +124,22 @@ export abstract class LoanApplicationsService {
         .insert(loanApplications)
         .values(values)
         .returning();
+
+      // Log application creation to audit trail
+      await AuditTrailService.logAction({
+        loanApplicationId: row.id,
+        userId: user.id,
+        action: "application_created",
+        reason: "User created loan application",
+        details: `Application ${applicationNumber} created for ${body.isBusinessLoan ? 'business' : 'personal'} loan`,
+        metadata: {
+          applicationNumber,
+          loanAmount: body.loanAmount,
+          loanTerm: body.loanTerm,
+          purpose: body.purpose,
+          isBusinessLoan: body.isBusinessLoan,
+        },
+      });
 
       // Create product snapshot for immutability
       await db.insert(loanProductSnapshots).values({
@@ -492,6 +511,33 @@ export abstract class LoanApplicationsService {
         .where(eq(loanApplications.id, id))
         .returning();
 
+      // Log application update to audit trail
+      await AuditTrailService.logAction({
+        loanApplicationId: id,
+        userId: user.id,
+        action: "status_updated",
+        reason: "User updated loan application details",
+        details: `Application ${existing.applicationNumber} updated`,
+        beforeData: {
+          loanAmount: existing.loanAmount,
+          loanTerm: existing.loanTerm,
+          purpose: existing.purpose,
+          purposeDescription: existing.purposeDescription,
+          coApplicantIds: existing.coApplicantIds,
+        },
+        afterData: {
+          loanAmount: body.loanAmount !== undefined ? body.loanAmount : existing.loanAmount,
+          loanTerm: body.loanTerm !== undefined ? body.loanTerm : existing.loanTerm,
+          purpose: body.purpose !== undefined ? body.purpose : existing.purpose,
+          purposeDescription: body.purposeDescription !== undefined ? body.purposeDescription : existing.purposeDescription,
+          coApplicantIds: body.coApplicantIds !== undefined ? JSON.stringify(body.coApplicantIds) : existing.coApplicantIds,
+        },
+        metadata: {
+          applicationNumber: existing.applicationNumber,
+          updatedFields: Object.keys(body).filter(key => body[key as keyof typeof body] !== undefined),
+        },
+      });
+
       const application = mapLoanApplicationRow(row);
 
       return {
@@ -556,10 +602,76 @@ export abstract class LoanApplicationsService {
           break;
       }
 
+      // Get user for audit trail
+      const user = await db.query.users.findFirst({
+        where: eq(users.clerkId, clerkId),
+      });
+      if (!user) throw httpError(404, "[USER_NOT_FOUND] User not found");
+
       await db
         .update(loanApplications)
-        .set(updateSet)
+        .set({
+          ...updateSet,
+          statusReason: `Status updated to ${body.status}`,
+          lastUpdatedBy: user.id,
+          lastUpdatedAt: new Date(),
+        })
         .where(eq(loanApplications.id, id));
+
+      // Log status update to audit trail
+      await AuditTrailService.logAction({
+        loanApplicationId: id,
+        userId: user.id,
+        action: `application_${body.status}` as any,
+        reason: `Application status updated to ${body.status}`,
+        details: body.rejectionReason || `Status changed from ${existing.status} to ${body.status}`,
+        beforeData: { status: existing.status },
+        afterData: { status: body.status, ...updateSet },
+        metadata: {
+          previousStatus: existing.status,
+          newStatus: body.status,
+          rejectionReason: body.rejectionReason,
+        },
+      });
+
+      // Create snapshot when application is approved
+      if (body.status === "approved") {
+        await SnapshotService.createSnapshot({
+          loanApplicationId: id,
+          createdBy: user.id,
+          approvalStage: "loan_approved",
+        });
+
+        // Log snapshot creation
+        await AuditTrailService.logAction({
+          loanApplicationId: id,
+          userId: user.id,
+          action: "snapshot_created",
+          reason: "Immutable snapshot created at loan approval",
+          details: "Complete application state captured for audit trail",
+          metadata: {
+            approvalStage: "loan_approved",
+          },
+        });
+      }
+
+      // Send status update notification
+      try {
+        await NotificationService.sendStatusUpdateNotification(
+          id,
+          existing.userId,
+          {
+            previousStatus: existing.status as any,
+            newStatus: body.status,
+            reason: body.rejectionReason || `Status updated to ${body.status}`,
+            rejectionReason: body.rejectionReason,
+          },
+          ['email']
+        );
+      } catch (error) {
+        logger.error("Failed to send status update notification:", error);
+        // Don't fail the status update if notification fails
+      }
 
       return {
         success: true,
@@ -620,8 +732,43 @@ export abstract class LoanApplicationsService {
         .set({
           status: "withdrawn",
           updatedAt: new Date(),
+          statusReason: "Application withdrawn by user",
+          lastUpdatedBy: user.id,
+          lastUpdatedAt: new Date(),
         })
         .where(eq(loanApplications.id, id));
+
+      // Log application withdrawal to audit trail
+      await AuditTrailService.logAction({
+        loanApplicationId: id,
+        userId: user.id,
+        action: "application_withdrawn",
+        reason: "User withdrew loan application",
+        details: `Application ${existing.applicationNumber} withdrawn by user`,
+        beforeData: { status: existing.status },
+        afterData: { status: "withdrawn" },
+        metadata: {
+          applicationNumber: existing.applicationNumber,
+          previousStatus: existing.status,
+        },
+      });
+
+      // Send withdrawal notification
+      try {
+        await NotificationService.sendStatusUpdateNotification(
+          id,
+          user.id,
+          {
+            previousStatus: existing.status as any,
+            newStatus: "withdrawn",
+            reason: "Application withdrawn by user",
+          },
+          ['email']
+        );
+      } catch (error) {
+        logger.error("Failed to send withdrawal notification:", error);
+        // Don't fail the withdrawal if notification fails
+      }
 
       return {
         success: true,
@@ -683,8 +830,32 @@ export abstract class LoanApplicationsService {
         .set({
           deletedAt: new Date(),
           updatedAt: new Date(),
+          statusReason: "Application deleted by user",
+          lastUpdatedBy: user.id,
+          lastUpdatedAt: new Date(),
         })
         .where(eq(loanApplications.id, id));
+
+      // Log application deletion to audit trail
+      await AuditTrailService.logAction({
+        loanApplicationId: id,
+        userId: user.id,
+        action: "application_deleted",
+        reason: "User deleted loan application",
+        details: `Application ${existing.applicationNumber} deleted by user`,
+        beforeData: { 
+          status: existing.status,
+          deletedAt: null,
+        },
+        afterData: { 
+          status: existing.status,
+          deletedAt: new Date(),
+        },
+        metadata: {
+          applicationNumber: existing.applicationNumber,
+          previousStatus: existing.status,
+        },
+      });
 
       return {
         success: true,
