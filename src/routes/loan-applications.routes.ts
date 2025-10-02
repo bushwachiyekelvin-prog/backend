@@ -303,6 +303,7 @@ export async function loanApplicationsRoutes(fastify: FastifyInstance) {
           return reply.code(401).send({ error: "Unauthorized", code: "UNAUTHORIZED" });
         }
         const { id } = (request.params as any) || {};
+        console.error(`User not found ${userId}`);
         const result = await LoanApplicationsService.updateStatus(
           userId,
           id,
@@ -604,6 +605,8 @@ export async function loanApplicationsRoutes(fastify: FastifyInstance) {
             throw { status: 401, message: "Unauthorized" };
           }
 
+          logger.info(`Updating status for loan application ${id} to ${status} for user ${userId}`);
+
           return StatusService.updateStatus({
             loanApplicationId: id,
             newStatus: status,
@@ -786,6 +789,21 @@ export async function loanApplicationsRoutes(fastify: FastifyInstance) {
             throw { status: 401, message: "Unauthorized" };
           }
 
+          // First check current status
+          const currentStatus = await StatusService.getStatus(id);
+          
+          // If already rejected, return success with appropriate message
+          if (currentStatus.status === "rejected") {
+            return {
+              success: true,
+              previousStatus: "rejected",
+              newStatus: "rejected",
+              message: "Loan application is already rejected",
+              snapshotCreated: false,
+            };
+          }
+
+          // If not rejected, proceed with status update
           return StatusService.updateStatus({
             loanApplicationId: id,
             newStatus: "rejected",

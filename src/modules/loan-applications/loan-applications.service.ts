@@ -10,11 +10,11 @@ import {
 import { loanProductSnapshots } from "../../db/schema/loanProductSnapshots";
 import { LoanApplicationsModel } from "./loan-applications.model";
 import { LoanApplicationsSchemas } from "./loan-applications.schemas";
-import { 
-  mapLoanApplicationRow, 
-  mapOfferLetterRow, 
+import {
+  mapLoanApplicationRow,
+  mapOfferLetterRow,
   generateApplicationNumber,
-  toNumber
+  toNumber,
 } from "./loan-applications.mapper";
 import { logger } from "../../utils/logger";
 import { AuditTrailService } from "../audit-trail/audit-trail.service";
@@ -28,14 +28,13 @@ function httpError(status: number, message: string) {
   return err;
 }
 
-
 export abstract class LoanApplicationsService {
   /**
    * Create a new loan application
    */
   static async create(
     clerkId: string,
-    body: LoanApplicationsModel.CreateLoanApplicationBody,
+    body: LoanApplicationsModel.CreateLoanApplicationBody
   ): Promise<LoanApplicationsModel.CreateLoanApplicationResponse> {
     try {
       if (!clerkId) throw httpError(401, "[UNAUTHORIZED] Missing user context");
@@ -53,8 +52,8 @@ export abstract class LoanApplicationsService {
         .where(
           and(
             eq(loanProducts.id, body.loanProductId),
-            isNull(loanProducts.deletedAt),
-          ),
+            isNull(loanProducts.deletedAt)
+          )
         )
         .limit(1);
       if (!loanProduct)
@@ -65,7 +64,7 @@ export abstract class LoanApplicationsService {
         const business = await db.query.businessProfiles.findFirst({
           where: and(
             eq(businessProfiles.id, body.businessId),
-            isNull(businessProfiles.deletedAt),
+            isNull(businessProfiles.deletedAt)
           ),
         });
         if (!business)
@@ -79,7 +78,7 @@ export abstract class LoanApplicationsService {
       if (body.loanAmount < minAmount || body.loanAmount > maxAmount) {
         throw httpError(
           400,
-          `[INVALID_AMOUNT] Loan amount must be between ${minAmount} and ${maxAmount}`,
+          `[INVALID_AMOUNT] Loan amount must be between ${minAmount} and ${maxAmount}`
         );
       }
 
@@ -89,7 +88,7 @@ export abstract class LoanApplicationsService {
       ) {
         throw httpError(
           400,
-          `[INVALID_TERM] Loan term must be between ${loanProduct.minTerm} and ${loanProduct.maxTerm} ${loanProduct.termUnit}`,
+          `[INVALID_TERM] Loan term must be between ${loanProduct.minTerm} and ${loanProduct.maxTerm} ${loanProduct.termUnit}`
         );
       }
 
@@ -97,7 +96,7 @@ export abstract class LoanApplicationsService {
       if (body.currency !== loanProduct.currency) {
         throw httpError(
           400,
-          `[INVALID_CURRENCY] Currency must match loan product currency: ${loanProduct.currency}`,
+          `[INVALID_CURRENCY] Currency must match loan product currency: ${loanProduct.currency}`
         );
       }
 
@@ -132,7 +131,7 @@ export abstract class LoanApplicationsService {
         userId: user.id,
         action: "application_created",
         reason: "User created loan application",
-        details: `Application ${applicationNumber} created for ${body.isBusinessLoan ? 'business' : 'personal'} loan`,
+        details: `Application ${applicationNumber} created for ${body.isBusinessLoan ? "business" : "personal"} loan`,
         metadata: {
           applicationNumber,
           loanAmount: body.loanAmount,
@@ -167,12 +166,15 @@ export abstract class LoanApplicationsService {
           processingFeeFlat: toNumber(loanProduct.processingFeeFlat) ?? 0,
           lateFeeRate: toNumber(loanProduct.lateFeeRate) ?? 0,
           lateFeeFlat: toNumber(loanProduct.lateFeeFlat) ?? 0,
-          prepaymentPenaltyRate: toNumber(loanProduct.prepaymentPenaltyRate) ?? 0,
+          prepaymentPenaltyRate:
+            toNumber(loanProduct.prepaymentPenaltyRate) ?? 0,
           gracePeriodDays: loanProduct.gracePeriodDays ?? 0,
           version: loanProduct.version ?? 1,
           status: loanProduct.status ?? "active",
-          createdAt: loanProduct.createdAt?.toISOString() ?? new Date().toISOString(),
-          updatedAt: loanProduct.updatedAt?.toISOString() ?? new Date().toISOString(),
+          createdAt:
+            loanProduct.createdAt?.toISOString() ?? new Date().toISOString(),
+          updatedAt:
+            loanProduct.updatedAt?.toISOString() ?? new Date().toISOString(),
         },
         productVersion: String(loanProduct.version ?? 1),
         snapshotReason: "application_creation",
@@ -190,18 +192,17 @@ export abstract class LoanApplicationsService {
       if (error?.status) throw error;
       throw httpError(
         500,
-        "[CREATE_LOAN_APPLICATION_ERROR] Failed to create loan application",
+        "[CREATE_LOAN_APPLICATION_ERROR] Failed to create loan application"
       );
     }
   }
-
 
   /**
    * List loan applications with optional filtering and pagination
    */
   static async list(
     clerkId: string,
-    query: LoanApplicationsModel.ListLoanApplicationsQuery = {},
+    query: LoanApplicationsModel.ListLoanApplicationsQuery = {}
   ): Promise<LoanApplicationsModel.ListLoanApplicationsResponse> {
     try {
       if (!clerkId) throw httpError(401, "[UNAUTHORIZED] Missing user context");
@@ -227,7 +228,7 @@ export abstract class LoanApplicationsService {
       if (query.isBusinessLoan !== undefined) {
         const isBusinessLoan = query.isBusinessLoan === "true";
         whereConditions.push(
-          eq(loanApplications.isBusinessLoan, isBusinessLoan),
+          eq(loanApplications.isBusinessLoan, isBusinessLoan)
         );
       }
       if (query.businessId) {
@@ -235,7 +236,7 @@ export abstract class LoanApplicationsService {
       }
       if (query.loanProductId) {
         whereConditions.push(
-          eq(loanApplications.loanProductId, query.loanProductId),
+          eq(loanApplications.loanProductId, query.loanProductId)
         );
       }
 
@@ -275,11 +276,11 @@ export abstract class LoanApplicationsService {
         .leftJoin(users, eq(loanApplications.userId, users.id))
         .leftJoin(
           businessProfiles,
-          eq(loanApplications.businessId, businessProfiles.id),
+          eq(loanApplications.businessId, businessProfiles.id)
         )
         .leftJoin(
           loanProducts,
-          eq(loanApplications.loanProductId, loanProducts.id),
+          eq(loanApplications.loanProductId, loanProducts.id)
         )
         .where(and(...whereConditions))
         .orderBy(desc(loanApplications.createdAt))
@@ -291,7 +292,7 @@ export abstract class LoanApplicationsService {
           user: row.user,
           business: row.business,
           loanProduct: row.loanProduct,
-        }),
+        })
       );
 
       return {
@@ -310,7 +311,7 @@ export abstract class LoanApplicationsService {
       if (error?.status) throw error;
       throw httpError(
         500,
-        "[LIST_LOAN_APPLICATIONS_ERROR] Failed to list loan applications",
+        "[LIST_LOAN_APPLICATIONS_ERROR] Failed to list loan applications"
       );
     }
   }
@@ -320,7 +321,7 @@ export abstract class LoanApplicationsService {
    */
   static async getById(
     clerkId: string,
-    id: string,
+    id: string
   ): Promise<LoanApplicationsModel.GetLoanApplicationResponse> {
     try {
       if (!clerkId) throw httpError(401, "[UNAUTHORIZED] Missing user context");
@@ -359,25 +360,25 @@ export abstract class LoanApplicationsService {
         .leftJoin(users, eq(loanApplications.userId, users.id))
         .leftJoin(
           businessProfiles,
-          eq(loanApplications.businessId, businessProfiles.id),
+          eq(loanApplications.businessId, businessProfiles.id)
         )
         .leftJoin(
           loanProducts,
-          eq(loanApplications.loanProductId, loanProducts.id),
+          eq(loanApplications.loanProductId, loanProducts.id)
         )
         .where(
           and(
             eq(loanApplications.id, id),
             eq(loanApplications.userId, user.id),
-            isNull(loanApplications.deletedAt),
-          ),
+            isNull(loanApplications.deletedAt)
+          )
         )
         .limit(1);
 
       if (!row)
         throw httpError(
           404,
-          "[LOAN_APPLICATION_NOT_FOUND] Loan application not found",
+          "[LOAN_APPLICATION_NOT_FOUND] Loan application not found"
         );
 
       // Get offer letters for this application
@@ -387,8 +388,8 @@ export abstract class LoanApplicationsService {
         .where(
           and(
             eq(offerLetters.loanApplicationId, id),
-            isNull(offerLetters.deletedAt),
-          ),
+            isNull(offerLetters.deletedAt)
+          )
         )
         .orderBy(desc(offerLetters.createdAt));
 
@@ -409,7 +410,7 @@ export abstract class LoanApplicationsService {
       if (error?.status) throw error;
       throw httpError(
         500,
-        "[GET_LOAN_APPLICATION_ERROR] Failed to get loan application",
+        "[GET_LOAN_APPLICATION_ERROR] Failed to get loan application"
       );
     }
   }
@@ -420,7 +421,7 @@ export abstract class LoanApplicationsService {
   static async update(
     clerkId: string,
     id: string,
-    body: LoanApplicationsModel.UpdateLoanApplicationBody,
+    body: LoanApplicationsModel.UpdateLoanApplicationBody
   ): Promise<LoanApplicationsModel.UpdateLoanApplicationResponse> {
     try {
       if (!clerkId) throw httpError(401, "[UNAUTHORIZED] Missing user context");
@@ -437,21 +438,21 @@ export abstract class LoanApplicationsService {
           and(
             eq(loanApplications.id, id),
             eq(loanApplications.userId, user.id),
-            isNull(loanApplications.deletedAt),
-          ),
+            isNull(loanApplications.deletedAt)
+          )
         )
         .limit(1);
 
       if (!existing)
         throw httpError(
           404,
-          "[LOAN_APPLICATION_NOT_FOUND] Loan application not found",
+          "[LOAN_APPLICATION_NOT_FOUND] Loan application not found"
         );
 
       if (existing.status !== "draft" && existing.status !== "submitted") {
         throw httpError(
           400,
-          "[INVALID_STATUS] Only draft and submitted applications can be updated",
+          "[INVALID_STATUS] Only draft and submitted applications can be updated"
         );
       }
 
@@ -463,8 +464,8 @@ export abstract class LoanApplicationsService {
           .where(
             and(
               eq(loanProducts.id, existing.loanProductId),
-              isNull(loanProducts.deletedAt),
-            ),
+              isNull(loanProducts.deletedAt)
+            )
           )
           .limit(1);
 
@@ -478,7 +479,7 @@ export abstract class LoanApplicationsService {
           if (loanAmount < minAmount || loanAmount > maxAmount) {
             throw httpError(
               400,
-              `[INVALID_AMOUNT] Loan amount must be between ${minAmount} and ${maxAmount}`,
+              `[INVALID_AMOUNT] Loan amount must be between ${minAmount} and ${maxAmount}`
             );
           }
 
@@ -488,7 +489,7 @@ export abstract class LoanApplicationsService {
           ) {
             throw httpError(
               400,
-              `[INVALID_TERM] Loan term must be between ${loanProduct.minTerm} and ${loanProduct.maxTerm} ${loanProduct.termUnit}`,
+              `[INVALID_TERM] Loan term must be between ${loanProduct.minTerm} and ${loanProduct.maxTerm} ${loanProduct.termUnit}`
             );
           }
         }
@@ -527,15 +528,27 @@ export abstract class LoanApplicationsService {
           coApplicantIds: existing.coApplicantIds,
         },
         afterData: {
-          loanAmount: body.loanAmount !== undefined ? body.loanAmount : existing.loanAmount,
-          loanTerm: body.loanTerm !== undefined ? body.loanTerm : existing.loanTerm,
+          loanAmount:
+            body.loanAmount !== undefined
+              ? body.loanAmount
+              : existing.loanAmount,
+          loanTerm:
+            body.loanTerm !== undefined ? body.loanTerm : existing.loanTerm,
           purpose: body.purpose !== undefined ? body.purpose : existing.purpose,
-          purposeDescription: body.purposeDescription !== undefined ? body.purposeDescription : existing.purposeDescription,
-          coApplicantIds: body.coApplicantIds !== undefined ? JSON.stringify(body.coApplicantIds) : existing.coApplicantIds,
+          purposeDescription:
+            body.purposeDescription !== undefined
+              ? body.purposeDescription
+              : existing.purposeDescription,
+          coApplicantIds:
+            body.coApplicantIds !== undefined
+              ? JSON.stringify(body.coApplicantIds)
+              : existing.coApplicantIds,
         },
         metadata: {
           applicationNumber: existing.applicationNumber,
-          updatedFields: Object.keys(body).filter(key => body[key as keyof typeof body] !== undefined),
+          updatedFields: Object.keys(body).filter(
+            (key) => body[key as keyof typeof body] !== undefined
+          ),
         },
       });
 
@@ -551,7 +564,7 @@ export abstract class LoanApplicationsService {
       if (error?.status) throw error;
       throw httpError(
         500,
-        "[UPDATE_LOAN_APPLICATION_ERROR] Failed to update loan application",
+        "[UPDATE_LOAN_APPLICATION_ERROR] Failed to update loan application"
       );
     }
   }
@@ -562,7 +575,7 @@ export abstract class LoanApplicationsService {
   static async updateStatus(
     clerkId: string,
     id: string,
-    body: LoanApplicationsModel.UpdateApplicationStatusBody,
+    body: LoanApplicationsModel.UpdateApplicationStatusBody
   ): Promise<LoanApplicationsModel.BasicSuccessResponse> {
     try {
       if (!clerkId) throw httpError(401, "[UNAUTHORIZED] Missing user context");
@@ -571,14 +584,14 @@ export abstract class LoanApplicationsService {
         .select()
         .from(loanApplications)
         .where(
-          and(eq(loanApplications.id, id), isNull(loanApplications.deletedAt)),
+          and(eq(loanApplications.id, id), isNull(loanApplications.deletedAt))
         )
         .limit(1);
 
       if (!existing)
         throw httpError(
           404,
-          "[LOAN_APPLICATION_NOT_FOUND] Loan application not found",
+          "[LOAN_APPLICATION_NOT_FOUND] Loan application not found"
         );
 
       const updateSet: Record<string, any> = {
@@ -611,19 +624,21 @@ export abstract class LoanApplicationsService {
           updateSet.rejectionReason = body.rejectionReason;
           break;
       }
-
       // Get user for audit trail
       const user = await db.query.users.findFirst({
         where: eq(users.clerkId, clerkId),
       });
-      if (!user) throw httpError(404, "[USER_NOT_FOUND] User not found");
+      if (!user) {
+        logger.error(`User not found ${clerkId}`);
+        throw httpError(404, "[USER_NOT_FOUND] User not found");
+      }
 
       await db
         .update(loanApplications)
         .set({
           ...updateSet,
           statusReason: `Status updated to ${body.status}`,
-          lastUpdatedBy: user.id,
+          lastUpdatedBy: clerkId,
           lastUpdatedAt: new Date(),
         })
         .where(eq(loanApplications.id, id));
@@ -634,7 +649,9 @@ export abstract class LoanApplicationsService {
         userId: user.id,
         action: `application_${body.status}` as any,
         reason: `Application status updated to ${body.status}`,
-        details: body.rejectionReason || `Status changed from ${existing.status} to ${body.status}`,
+        details:
+          body.rejectionReason ||
+          `Status changed from ${existing.status} to ${body.status}`,
         beforeData: { status: existing.status },
         afterData: { status: body.status, ...updateSet },
         metadata: {
@@ -691,7 +708,9 @@ export abstract class LoanApplicationsService {
               specialConditions: undefined,
               requiresGuarantor: false,
               requiresCollateral: false,
-              expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+              expiresAt: new Date(
+                Date.now() + 30 * 24 * 60 * 60 * 1000
+              ).toISOString(), // 30 days from now
             });
 
             // Log offer letter creation
@@ -726,7 +745,7 @@ export abstract class LoanApplicationsService {
             reason: body.rejectionReason || `Status updated to ${body.status}`,
             rejectionReason: body.rejectionReason,
           },
-          ['email']
+          ["email"]
         );
       } catch (error) {
         logger.error("Failed to send status update notification:", error);
@@ -742,7 +761,7 @@ export abstract class LoanApplicationsService {
       if (error?.status) throw error;
       throw httpError(
         500,
-        "[UPDATE_LOAN_APPLICATION_STATUS_ERROR] Failed to update loan application status",
+        "[UPDATE_LOAN_APPLICATION_STATUS_ERROR] Failed to update loan application status"
       );
     }
   }
@@ -752,7 +771,7 @@ export abstract class LoanApplicationsService {
    */
   static async withdraw(
     clerkId: string,
-    id: string,
+    id: string
   ): Promise<LoanApplicationsModel.BasicSuccessResponse> {
     try {
       if (!clerkId) throw httpError(401, "[UNAUTHORIZED] Missing user context");
@@ -769,21 +788,21 @@ export abstract class LoanApplicationsService {
           and(
             eq(loanApplications.id, id),
             eq(loanApplications.userId, user.id),
-            isNull(loanApplications.deletedAt),
-          ),
+            isNull(loanApplications.deletedAt)
+          )
         )
         .limit(1);
 
       if (!existing)
         throw httpError(
           404,
-          "[LOAN_APPLICATION_NOT_FOUND] Loan application not found",
+          "[LOAN_APPLICATION_NOT_FOUND] Loan application not found"
         );
 
       if (["disbursed", "rejected", "withdrawn"].includes(existing.status)) {
         throw httpError(
           400,
-          "[INVALID_STATUS] Application cannot be withdrawn in current status",
+          "[INVALID_STATUS] Application cannot be withdrawn in current status"
         );
       }
 
@@ -793,7 +812,7 @@ export abstract class LoanApplicationsService {
           status: "withdrawn",
           updatedAt: new Date(),
           statusReason: "Application withdrawn by user",
-          lastUpdatedBy: user.id,
+          lastUpdatedBy: clerkId,
           lastUpdatedAt: new Date(),
         })
         .where(eq(loanApplications.id, id));
@@ -823,7 +842,7 @@ export abstract class LoanApplicationsService {
             newStatus: "withdrawn",
             reason: "Application withdrawn by user",
           },
-          ['email']
+          ["email"]
         );
       } catch (error) {
         logger.error("Failed to send withdrawal notification:", error);
@@ -839,7 +858,7 @@ export abstract class LoanApplicationsService {
       if (error?.status) throw error;
       throw httpError(
         500,
-        "[WITHDRAW_LOAN_APPLICATION_ERROR] Failed to withdraw loan application",
+        "[WITHDRAW_LOAN_APPLICATION_ERROR] Failed to withdraw loan application"
       );
     }
   }
@@ -849,7 +868,7 @@ export abstract class LoanApplicationsService {
    */
   static async remove(
     clerkId: string,
-    id: string,
+    id: string
   ): Promise<LoanApplicationsModel.BasicSuccessResponse> {
     try {
       if (!clerkId) throw httpError(401, "[UNAUTHORIZED] Missing user context");
@@ -866,22 +885,22 @@ export abstract class LoanApplicationsService {
           and(
             eq(loanApplications.id, id),
             eq(loanApplications.userId, user.id),
-            isNull(loanApplications.deletedAt),
-          ),
+            isNull(loanApplications.deletedAt)
+          )
         )
         .limit(1);
 
       if (!existing)
         throw httpError(
           404,
-          "[LOAN_APPLICATION_NOT_FOUND] Loan application not found",
+          "[LOAN_APPLICATION_NOT_FOUND] Loan application not found"
         );
 
       // Only allow deletion of submitted applications (not yet under review)
       if (existing.status !== "submitted") {
         throw httpError(
           400,
-          "[INVALID_STATUS] Only submitted applications can be deleted",
+          "[INVALID_STATUS] Only submitted applications can be deleted"
         );
       }
 
@@ -891,7 +910,7 @@ export abstract class LoanApplicationsService {
           deletedAt: new Date(),
           updatedAt: new Date(),
           statusReason: "Application deleted by user",
-          lastUpdatedBy: user.id,
+          lastUpdatedBy: clerkId,
           lastUpdatedAt: new Date(),
         })
         .where(eq(loanApplications.id, id));
@@ -903,11 +922,11 @@ export abstract class LoanApplicationsService {
         action: "application_deleted",
         reason: "User deleted loan application",
         details: `Application ${existing.applicationNumber} deleted by user`,
-        beforeData: { 
+        beforeData: {
           status: existing.status,
           deletedAt: null,
         },
-        afterData: { 
+        afterData: {
           status: existing.status,
           deletedAt: new Date(),
         },
@@ -926,7 +945,7 @@ export abstract class LoanApplicationsService {
       if (error?.status) throw error;
       throw httpError(
         500,
-        "[DELETE_LOAN_APPLICATION_ERROR] Failed to delete loan application",
+        "[DELETE_LOAN_APPLICATION_ERROR] Failed to delete loan application"
       );
     }
   }

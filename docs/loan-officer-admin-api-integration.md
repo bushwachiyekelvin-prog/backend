@@ -55,6 +55,11 @@ The system extracts `userId` from the Clerk token for audit trails and permissio
 - ✅ `GET /loan-applications/:id/audit-trail` - Audit history
 - ✅ `GET /loan-applications/:id/snapshots` - View snapshots
 - ✅ `GET /loan-applications/:id/document-requests` - Document tracking
+- ✅ `GET /loan-applications/:id/document-requests/statistics` - Document stats
+- ✅ `POST /document-requests` - Create document request
+- ✅ `PATCH /document-requests/:id/fulfill` - Fulfill document request
+- ✅ `GET /document-requests/pending/:userId` - Get pending requests
+- ✅ `GET /document-requests/:id` - Get document request by ID
 - ✅ `POST /offer-letters` - Create offer letters
 - ✅ `POST /offer-letters/:id/send` - Send via DocuSign
 - ✅ `GET /offer-letters` - List offer letters
@@ -319,9 +324,39 @@ interface AuditSummaryResponse {
 
 ## Document Request Management
 
+The document request system allows loan officers to request specific documents from applicants during the review process. This creates a trackable workflow for document collection.
+
+### Create Document Request
+
+**Endpoint**: `POST /document-requests`
+
+**Description**: Create a new document request for a loan application.
+
+**Request Body**:
+```typescript
+interface CreateDocumentRequestBody {
+  loanApplicationId: string;
+  requestedFrom: string;      // User ID to request document from
+  documentType: RequestedDocumentType;
+  description: string;        // What's needed and why
+  isRequired?: boolean;       // Default: true
+}
+```
+
+**Response**:
+```typescript
+interface DocumentRequestResponse {
+  success: boolean;
+  message: string;
+  data: DocumentRequestItem;
+}
+```
+
 ### Get Document Requests
 
 **Endpoint**: `GET /loan-applications/:id/document-requests`
+
+**Description**: Retrieve all document requests for a specific loan application.
 
 **Query Parameters**:
 ```typescript
@@ -330,9 +365,33 @@ interface DocumentRequestQuery {
 }
 ```
 
+**Response**:
+```typescript
+interface DocumentRequestsResponse {
+  success: boolean;
+  message: string;
+  data: DocumentRequestItem[];
+}
+```
+
+### Fulfill Document Request
+
+**Endpoint**: `PATCH /document-requests/:id/fulfill`
+
+**Description**: Mark a document request as fulfilled when the document is uploaded.
+
+**Request Body**:
+```typescript
+interface FulfillDocumentRequestBody {
+  fulfilledWith: string;  // Document ID that fulfills the request
+}
+```
+
 ### Get Document Request Statistics
 
 **Endpoint**: `GET /loan-applications/:id/document-requests/statistics`
+
+**Description**: Get statistics about document requests for a loan application.
 
 **Response**:
 ```typescript
@@ -348,15 +407,112 @@ interface DocumentStatsResponse {
 }
 ```
 
-**Document Types**:
-- `identity_document`
-- `proof_of_income`
-- `bank_statement`
-- `business_registration`
-- `tax_return`
-- `financial_statement`
-- `collateral_document`
-- `other`
+### Get Pending Requests for User
+
+**Endpoint**: `GET /document-requests/pending/:userId`
+
+**Description**: Get all pending document requests for a specific user.
+
+**Response**:
+```typescript
+interface PendingRequestsResponse {
+  success: boolean;
+  message: string;
+  data: DocumentRequestItem[];
+}
+```
+
+### Document Request Data Model
+
+```typescript
+interface DocumentRequestItem {
+  id: string;
+  loanApplicationId: string;
+  requestedBy: string;        // Officer who made the request
+  requestedFrom: string;      // User who needs to provide document
+  documentType: RequestedDocumentType;
+  description: string;
+  isRequired: string;         // "true" or "false"
+  status: DocumentRequestStatus;
+  fulfilledAt?: string | null;
+  fulfilledWith?: string | null;  // Document ID
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+### Document Types (Complete List)
+
+**Personal Documents**:
+- `national_id_front` - Front of national ID card
+- `national_id_back` - Back of national ID card  
+- `passport_bio_page` - Passport biographical page
+- `drivers_license` - Driver's license
+- `utility_bill` - Utility bill for address verification
+- `bank_statement` - Personal bank statement
+
+**Business Documents**:
+- `business_registration` - Business registration certificate
+- `articles_of_association` - Articles of association
+- `business_permit` - Business operating permit
+- `tax_registration_certificate` - Tax registration
+- `certificate_of_incorporation` - Certificate of incorporation
+- `tax_clearance_certificate` - Tax clearance certificate
+- `partnership_deed` - Partnership deed
+- `memorandum_of_association` - Memorandum of association
+- `business_plan` - Business plan document
+- `pitch_deck` - Business pitch deck
+- `annual_bank_statement` - Annual business bank statement
+- `audited_financial_statements` - Audited financial statements
+
+**Other**:
+- `other` - Custom document type
+
+### Document Request Status Flow
+
+```typescript
+type DocumentRequestStatus = "pending" | "fulfilled" | "overdue";
+```
+
+**Status Transitions**:
+- `pending` → `fulfilled` (when document is uploaded)
+- `pending` → `overdue` (automated based on time rules)
+- `overdue` → `fulfilled` (when document is finally uploaded)
+
+### Integration Example - Request Documents
+
+```typescript
+// Officer requests additional documents during review
+const requestResponse = await fetch('/document-requests', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${clerkToken}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    loanApplicationId: applicationId,
+    requestedFrom: applicantUserId,
+    documentType: 'business_registration',
+    description: 'Please provide your current business registration certificate to verify business details.',
+    isRequired: true
+  })
+});
+
+// Get all document requests for an application
+const requestsResponse = await fetch(`/loan-applications/${applicationId}/document-requests`, {
+  headers: { 'Authorization': `Bearer ${clerkToken}` }
+});
+
+const { data: documentRequests } = await requestsResponse.json();
+
+// Check statistics
+const statsResponse = await fetch(`/loan-applications/${applicationId}/document-requests/statistics`, {
+  headers: { 'Authorization': `Bearer ${clerkToken}` }
+});
+
+const { data: stats } = await statsResponse.json();
+console.log(`${stats.pending} pending, ${stats.fulfilled} fulfilled out of ${stats.total} total requests`);
+```
 
 ## Offer Letter Management
 

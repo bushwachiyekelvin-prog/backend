@@ -133,10 +133,10 @@ export abstract class StatusService {
       if (!validation.isValid) {
         throw httpError(400, `[INVALID_STATUS_TRANSITION] ${validation.error}`);
       }
-
+      logger.info(`Validating status transition for loan application ${loanApplicationId} from ${currentApplication.status} to ${newStatus} for user ${userId}`);
       // Get user for audit trail
       const user = await db.query.users.findFirst({
-        where: eq(users.id, userId),
+        where: eq(users.clerkId, userId),
       });
       if (!user) {
         throw httpError(404, "[USER_NOT_FOUND] User not found for status update.");
@@ -179,7 +179,7 @@ export abstract class StatusService {
       // Log status update to audit trail
       const auditEntry = await AuditTrailService.logAction({
         loanApplicationId,
-        userId,
+        userId: user.id,
         action: `application_${newStatus}` as any,
         reason: reason || `Application status updated to ${newStatus}`,
         details: rejectionReason || `Status changed from ${currentApplication.status} to ${newStatus}`,
@@ -207,14 +207,14 @@ export abstract class StatusService {
         try {
           await SnapshotService.createSnapshot({
             loanApplicationId,
-            createdBy: userId,
+            createdBy: user.id,
             approvalStage: "loan_approved",
           });
 
           // Log snapshot creation
           await AuditTrailService.logAction({
             loanApplicationId,
-            userId,
+            userId: user.id,
             action: "snapshot_created",
             reason: "Immutable snapshot created at loan approval",
             details: "Complete application state captured for audit trail",

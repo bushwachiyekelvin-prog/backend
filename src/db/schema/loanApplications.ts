@@ -82,7 +82,7 @@ export const loanApplications = pgTable(
     
     // Enhanced status tracking for audit trail
     statusReason: text("status_reason"), // Reason for current status
-    lastUpdatedBy: varchar("last_updated_by", { length: 24 }).references(() => users.id), // User who last updated
+    lastUpdatedBy: varchar("last_updated_by", { length: 64 }).references(() => users.clerkId), // Clerk ID of user who last updated
     lastUpdatedAt: timestamp("last_updated_at", { withTimezone: true }).defaultNow(), // When last updated
     
     // Standard lifecycle fields

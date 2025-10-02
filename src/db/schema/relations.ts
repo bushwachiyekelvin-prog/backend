@@ -94,7 +94,7 @@ export const loanApplicationsRelations = relations(loanApplications, ({ one, man
   }),
   lastUpdatedByUser: one(users, {
     fields: [loanApplications.lastUpdatedBy],
-    references: [users.id],
+    references: [users.clerkId],
   }),
   auditTrail: many(applicationAuditTrail),
   snapshots: many(loanApplicationSnapshots),
