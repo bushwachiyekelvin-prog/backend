@@ -17,6 +17,7 @@ export interface CreateSnapshotParams {
   loanApplicationId: string;
   createdBy: string;
   approvalStage?: string;
+  existingApplication?: any; // Optional pre-fetched application data
 }
 
 export interface SnapshotData {
@@ -59,48 +60,39 @@ export abstract class SnapshotService {
         throw httpError(400, "[INVALID_PARAMETERS] loanApplicationId and createdBy are required");
       }
 
-      // Get loan application with related data
-      const [application] = await db
-        .select()
-        .from(loanApplications)
-        .where(eq(loanApplications.id, params.loanApplicationId))
-        .limit(1);
-
+      // Use existing application data or fetch it
+      let application = params.existingApplication;
       if (!application) {
-        throw httpError(404, "[LOAN_APPLICATION_NOT_FOUND] Loan application not found");
-      }
-
-      // Get business profile if it exists
-      let businessProfile = null;
-      if (application.businessId) {
-        const [profile] = await db
+        const [fetchedApplication] = await db
           .select()
-          .from(businessProfiles)
-          .where(eq(businessProfiles.id, application.businessId))
+          .from(loanApplications)
+          .where(eq(loanApplications.id, params.loanApplicationId))
           .limit(1);
-        businessProfile = profile;
+        
+        if (!fetchedApplication) {
+          throw httpError(404, "[LOAN_APPLICATION_NOT_FOUND] Loan application not found");
+        }
+        application = fetchedApplication;
       }
 
-      // Get personal documents
-      const personalDocs = await db
-        .select()
-        .from(personalDocuments)
-        .where(eq(personalDocuments.userId, application.userId));
-
-      // Get business documents if business exists
-      let businessDocs: any[] = [];
-      if (application.businessId) {
-        businessDocs = await db
-          .select()
-          .from(businessDocuments)
-          .where(eq(businessDocuments.businessId, application.businessId));
-      }
-
-      // Get offer letters for this loan application
-      const offerLetterDocs = await db
-        .select()
-        .from(offerLetters)
-        .where(eq(offerLetters.loanApplicationId, params.loanApplicationId));
+      // Run all related data queries in parallel for better performance
+      const [businessProfile, personalDocs, businessDocs, offerLetterDocs] = await Promise.all([
+        // Get business profile if it exists
+        application.businessId 
+          ? db.select().from(businessProfiles).where(eq(businessProfiles.id, application.businessId)).limit(1).then(results => results[0] || null)
+          : Promise.resolve(null),
+        
+        // Get personal documents
+        db.select().from(personalDocuments).where(eq(personalDocuments.userId, application.userId)),
+        
+        // Get business documents if business exists
+        application.businessId 
+          ? db.select().from(businessDocuments).where(eq(businessDocuments.businessId, application.businessId))
+          : Promise.resolve([]),
+        
+        // Get offer letters for this loan application
+        db.select().from(offerLetters).where(eq(offerLetters.loanApplicationId, params.loanApplicationId))
+      ]);
 
       // Prepare snapshot data
       const snapshotData: SnapshotData = {

@@ -682,57 +682,8 @@ export abstract class LoanApplicationsService {
         });
       }
 
-      // Create offer letter when status changes to offer_letter_sent
-      if (body.status === "offer_letter_sent") {
-        try {
-          // Get loan application details for offer letter creation
-          const loanApp = await db.query.loanApplications.findFirst({
-            where: eq(loanApplications.id, id),
-            with: {
-              business: true,
-              user: true,
-              loanProduct: true,
-            },
-          });
-
-          if (loanApp) {
-            // Create offer letter with basic details
-            await OfferLettersService.create(clerkId, {
-              loanApplicationId: id,
-              recipientEmail: loanApp.user.email,
-              recipientName: `${loanApp.user.firstName} ${loanApp.user.lastName}`,
-              offerAmount: Number(loanApp.loanAmount),
-              offerTerm: loanApp.loanTerm,
-              interestRate: Number(loanApp.loanProduct.interestRate),
-              currency: loanApp.currency,
-              specialConditions: undefined,
-              requiresGuarantor: false,
-              requiresCollateral: false,
-              expiresAt: new Date(
-                Date.now() + 30 * 24 * 60 * 60 * 1000
-              ).toISOString(), // 30 days from now
-            });
-
-            // Log offer letter creation
-            await AuditTrailService.logAction({
-              loanApplicationId: id,
-              userId: user.id,
-              action: "offer_letter_created",
-              reason: "Offer letter created for approved loan application",
-              details: `Offer letter created for loan amount ${loanApp.currency} ${loanApp.loanAmount}`,
-              metadata: {
-                loanAmount: loanApp.loanAmount,
-                loanTerm: loanApp.loanTerm,
-                interestRate: loanApp.loanProduct.interestRate,
-                currency: loanApp.currency,
-              },
-            });
-          }
-        } catch (error) {
-          logger.error("Failed to create offer letter:", error);
-          // Don't fail the status update if offer letter creation fails
-        }
-      }
+      // Note: Offer letter automation moved to StatusService for consistency
+      // If you need offer letter automation, use StatusService.updateStatus() instead
 
       // Send status update notification
       try {

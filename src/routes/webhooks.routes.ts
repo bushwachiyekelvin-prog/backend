@@ -76,7 +76,26 @@ async function handleDocuSignStatusUpdate(event: any) {
     status = event.data.envelopeSummary.status;
   } else if (event.data?.envelopeId) {
     envelopeId = event.data.envelopeId;
-    status = event.data.status || 'unknown';
+    // Map webhook event to status
+    switch (event.event) {
+      case 'envelope-sent':
+        status = 'sent';
+        break;
+      case 'envelope-delivered':
+        status = 'delivered';
+        break;
+      case 'envelope-completed':
+        status = 'completed';
+        break;
+      case 'envelope-declined':
+        status = 'declined';
+        break;
+      case 'envelope-voided':
+        status = 'voided';
+        break;
+      default:
+        status = event.data.status || 'unknown';
+    }
   } else {
     logger.error("Cannot extract envelope information from webhook event:", event);
     return;
@@ -131,6 +150,8 @@ async function handleDocuSignStatusUpdate(event: any) {
     }
 
     // Update offer letter
+    logger.info(`Updating offer letter ${offerLetter.id}: status ${offerLetter.status} -> ${newOfferLetterStatus}, docuSignStatus ${offerLetter.docuSignStatus} -> ${newDocuSignStatus}`);
+    
     await db
       .update(offerLetters)
       .set({
@@ -178,16 +199,33 @@ async function handleDocuSignStatusUpdate(event: any) {
         // Don't fail the entire operation if audit logging fails
       }
 
-      // Send notification about status change
-      try {
-        await StatusService.updateStatus({
-          loanApplicationId: offerLetter.loanApplicationId,
-          newStatus: newLoanStatus,
-          userId: offerLetter.createdBy || "",
-        });
-      } catch (statusError) {
-        logger.error("Failed to update status via StatusService:", statusError);
-        // Don't fail the entire operation if status update fails
+      // Update loan application status directly (without triggering automation)
+      if (newLoanStatus) {
+        try {
+          logger.info(`Updating loan application ${offerLetter.loanApplicationId} status to ${newLoanStatus} via webhook`);
+          
+          // Get the user's Clerk ID for the foreign key constraint
+          const creator = await db.query.users.findFirst({
+            where: eq(users.id, offerLetter.createdBy),
+            columns: { clerkId: true }
+          });
+          
+          await db
+            .update(loanApplications)
+            .set({
+              status: newLoanStatus,
+              statusReason: `Status updated via DocuSign webhook: ${status}`,
+              lastUpdatedBy: creator?.clerkId || "system",
+              lastUpdatedAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(loanApplications.id, offerLetter.loanApplicationId));
+          
+          logger.info(`Successfully updated loan application ${offerLetter.loanApplicationId} status to ${newLoanStatus} via webhook`);
+        } catch (statusError) {
+          logger.error("Failed to update loan application status via webhook:", statusError);
+          // Don't fail the entire operation if status update fails
+        }
       }
     }
 

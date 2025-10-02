@@ -304,11 +304,29 @@ export async function loanApplicationsRoutes(fastify: FastifyInstance) {
         }
         const { id } = (request.params as any) || {};
         console.error(`User not found ${userId}`);
-        const result = await LoanApplicationsService.updateStatus(
+        const body = request.body as LoanApplicationsModel.UpdateApplicationStatusBody;
+        
+        logger.info(`[ROUTE_PATCH_STATUS] Incoming PATCH request | Loan: ${id} | Status: ${body.status} | User: ${userId} | Time: ${new Date().toISOString()}`);
+        
+        const statusResult = await StatusService.updateStatus({
+          loanApplicationId: id,
+          newStatus: body.status,
           userId,
-          id,
-          request.body as LoanApplicationsModel.UpdateApplicationStatusBody,
-        );
+          reason: `Status updated to ${body.status}`,
+          rejectionReason: body.rejectionReason,
+        });
+        
+        // Format response to match expected schema
+        const result = {
+          success: statusResult.success,
+          message: `Loan application status updated to ${body.status}`,
+          data: {
+            id,
+            status: body.status,
+            previousStatus: statusResult.previousStatus,
+            updatedAt: new Date().toISOString(),
+          }
+        };
         return reply.send(result);
       } catch (error: any) {
         logger.error("Error updating loan application status:", error);
@@ -559,7 +577,7 @@ export async function loanApplicationsRoutes(fastify: FastifyInstance) {
           properties: {
             status: { 
               type: "string",
-              enum: ["draft", "submitted", "under_review", "approved", "rejected", "withdrawn", "disbursed"]
+              enum: ["draft", "submitted", "under_review", "approved", "offer_letter_sent", "offer_letter_signed", "offer_letter_declined", "rejected", "withdrawn", "disbursed", "expired"]
             },
             reason: { type: "string" },
             rejectionReason: { type: "string" },
@@ -605,7 +623,7 @@ export async function loanApplicationsRoutes(fastify: FastifyInstance) {
             throw { status: 401, message: "Unauthorized" };
           }
 
-          logger.info(`Updating status for loan application ${id} to ${status} for user ${userId}`);
+          logger.info(`[ROUTE_PUT_STATUS] Incoming PUT request | Loan: ${id} | Status: ${status} | User: ${userId} | Time: ${new Date().toISOString()}`);
 
           return StatusService.updateStatus({
             loanApplicationId: id,

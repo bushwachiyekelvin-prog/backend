@@ -2,10 +2,16 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db } from "../../db";
 import { loanApplications } from "../../db/schema/loanApplications";
 import { users } from "../../db/schema/users";
+import { offerLetters } from "../../db/schema/offerLetters";
 import { AuditTrailService } from "../audit-trail/audit-trail.service";
 import { SnapshotService } from "../snapshots/snapshot.service";
 import { NotificationService } from "../notifications/notification.service";
+import { OfferLettersService } from "../offer-letters/offer-letters.service";
 import { logger } from "../../utils/logger";
+
+// Simple in-memory cache for user lookups (5 minute TTL)
+const userCache = new Map<string, { user: any; expires: number }>();
+const USER_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 // Loan application status enum
 export type LoanApplicationStatus = 
@@ -100,8 +106,11 @@ export abstract class StatusService {
    * Updates the status of a loan application with full audit trail
    */
   static async updateStatus(params: UpdateStatusParams): Promise<StatusUpdateResult> {
+    const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     try {
       const { loanApplicationId, newStatus, userId, reason, rejectionReason, metadata } = params;
+
+      logger.info(`[STATUS_UPDATE_START] RequestID: ${requestId} | Loan: ${loanApplicationId} | Status: ${newStatus} | User: ${userId} | Time: ${new Date().toISOString()}`);
 
       // Basic validation
       if (!loanApplicationId || !newStatus || !userId) {
@@ -124,6 +133,8 @@ export abstract class StatusService {
         throw httpError(404, "[LOAN_APPLICATION_NOT_FOUND] Loan application not found.");
       }
 
+      logger.info(`[STATUS_UPDATE_CURRENT] RequestID: ${requestId} | Current Status: ${currentApplication.status} -> New Status: ${newStatus}`);
+
       // Validate status transition
       const validation = this.validateStatusTransition(
         currentApplication.status as LoanApplicationStatus,
@@ -134,12 +145,21 @@ export abstract class StatusService {
         throw httpError(400, `[INVALID_STATUS_TRANSITION] ${validation.error}`);
       }
       logger.info(`Validating status transition for loan application ${loanApplicationId} from ${currentApplication.status} to ${newStatus} for user ${userId}`);
-      // Get user for audit trail
-      const user = await db.query.users.findFirst({
-        where: eq(users.clerkId, userId),
-      });
-      if (!user) {
-        throw httpError(404, "[USER_NOT_FOUND] User not found for status update.");
+      
+      // Get user for audit trail (with caching)
+      let user;
+      const cached = userCache.get(userId);
+      if (cached && cached.expires > Date.now()) {
+        user = cached.user;
+      } else {
+        user = await db.query.users.findFirst({
+          where: eq(users.clerkId, userId),
+        });
+        if (!user) {
+          throw httpError(404, "[USER_NOT_FOUND] User not found for status update.");
+        }
+        // Cache the user for 5 minutes
+        userCache.set(userId, { user, expires: Date.now() + USER_CACHE_TTL });
       }
 
       // Prepare update data
@@ -170,45 +190,49 @@ export abstract class StatusService {
           break;
       }
 
-      // Update the loan application
-      await db
-        .update(loanApplications)
-        .set(updateData)
-        .where(eq(loanApplications.id, loanApplicationId));
+      logger.info(`[STATUS_UPDATE_TRANSACTION_START] RequestID: ${requestId} | Starting database transaction`);
 
-      // Log status update to audit trail
-      const auditEntry = await AuditTrailService.logAction({
-        loanApplicationId,
-        userId: user.id,
-        action: `application_${newStatus}` as any,
-        reason: reason || `Application status updated to ${newStatus}`,
-        details: rejectionReason || `Status changed from ${currentApplication.status} to ${newStatus}`,
-        beforeData: { 
-          status: currentApplication.status,
-          statusReason: currentApplication.statusReason,
-        },
-        afterData: { 
-          status: newStatus,
-          statusReason: updateData.statusReason,
-          ...updateData,
-        },
-        metadata: {
-          previousStatus: currentApplication.status,
-          newStatus,
-          rejectionReason,
-          ...metadata,
-        },
-      });
+      // Wrap all database operations in a transaction
+      const result = await db.transaction(async (tx) => {
+        // Update the loan application
+        await tx
+          .update(loanApplications)
+          .set(updateData)
+          .where(eq(loanApplications.id, loanApplicationId));
 
-      let snapshotCreated = false;
+        // Log status update to audit trail
+        const auditEntry = await AuditTrailService.logAction({
+          loanApplicationId,
+          userId: user.id,
+          action: `application_${newStatus}` as any,
+          reason: reason || `Application status updated to ${newStatus}`,
+          details: rejectionReason || `Status changed from ${currentApplication.status} to ${newStatus}`,
+          beforeData: { 
+            status: currentApplication.status,
+            statusReason: currentApplication.statusReason,
+          },
+          afterData: { 
+            status: newStatus,
+            statusReason: updateData.statusReason,
+            ...updateData,
+          },
+          metadata: {
+            previousStatus: currentApplication.status,
+            newStatus,
+            rejectionReason,
+            ...metadata,
+          },
+        });
 
-      // Create snapshot when application is approved
-      if (newStatus === "approved") {
-        try {
+        let snapshotCreated = false;
+
+        // Create snapshot when application is approved
+        if (newStatus === "approved") {
           await SnapshotService.createSnapshot({
             loanApplicationId,
             createdBy: user.id,
             approvalStage: "loan_approved",
+            existingApplication: currentApplication, // Pass existing data
           });
 
           // Log snapshot creation
@@ -225,11 +249,110 @@ export abstract class StatusService {
           });
 
           snapshotCreated = true;
-        } catch (error) {
-          logger.error("Failed to create snapshot on approval:", error);
-          // Don't fail the status update if snapshot creation fails
         }
-      }
+
+        // Create offer letter when status changes to offer_letter_sent
+        if (newStatus === "offer_letter_sent") {
+          logger.info(`[OFFER_LETTER_CHECK] RequestID: ${requestId} | Checking for existing offer letter`);
+          
+          // Check if offer letter already exists to avoid duplicates
+          const existingOffer = await db.query.offerLetters.findFirst({
+            where: and(
+              eq(offerLetters.loanApplicationId, loanApplicationId),
+              eq(offerLetters.isActive, true),
+              isNull(offerLetters.deletedAt)
+            ),
+          });
+
+          if (!existingOffer) {
+            logger.info(`[OFFER_LETTER_CREATE] RequestID: ${requestId} | No existing offer letter found, creating new one`);
+            // Get loan application details for offer letter creation (optimized query)
+            const loanApp = await db.query.loanApplications.findFirst({
+              where: eq(loanApplications.id, loanApplicationId),
+              with: {
+                business: true,
+                user: {
+                  columns: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                  }
+                },
+                loanProduct: {
+                  columns: {
+                    id: true,
+                    interestRate: true,
+                  }
+                },
+              },
+            });
+
+            if (loanApp) {
+              // Create offer letter with basic details
+              logger.info(`[OFFER_LETTER_CREATE_START] RequestID: ${requestId} | Creating offer letter for ${loanApp.user.email}`);
+              
+              const createdOffer = await OfferLettersService.create(userId, {
+                loanApplicationId,
+                recipientEmail: loanApp.user.email,
+                recipientName: `${loanApp.user.firstName} ${loanApp.user.lastName}`,
+                offerAmount: Number(loanApp.loanAmount),
+                offerTerm: loanApp.loanTerm,
+                interestRate: Number(loanApp.loanProduct.interestRate),
+                currency: loanApp.currency,
+                specialConditions: undefined,
+                requiresGuarantor: false,
+                requiresCollateral: false,
+                expiresAt: new Date(
+                  Date.now() + 30 * 24 * 60 * 60 * 1000
+                ).toISOString(), // 30 days from now
+              });
+
+              logger.info(`[OFFER_LETTER_SEND_ASYNC] RequestID: ${requestId} | Queuing offer letter ${createdOffer.data.id} for DocuSign sending`);
+
+              // Send the offer letter via DocuSign asynchronously (don't wait)
+              setImmediate(async () => {
+                try {
+                  logger.info(`[OFFER_LETTER_SEND_START] Background | Sending offer letter ${createdOffer.data.id} via DocuSign`);
+                  
+                  await OfferLettersService.sendOfferLetter(userId, createdOffer.data.id, {
+                    recipientEmail: loanApp.user.email,
+                    recipientName: `${loanApp.user.firstName} ${loanApp.user.lastName}`,
+                    customMessage: "Your loan application has been approved! Please review and sign the attached offer letter.",
+                  });
+
+                  logger.info(`[OFFER_LETTER_SEND_COMPLETE] Background | Offer letter sent successfully via DocuSign`);
+                } catch (error) {
+                  logger.error(`[OFFER_LETTER_SEND_ERROR] Background | Failed to send offer letter ${createdOffer.data.id}:`, error);
+                  // Could add retry logic or notification here
+                }
+              });
+
+              // Log offer letter creation and sending
+              await AuditTrailService.logAction({
+                loanApplicationId,
+                userId: user.id,
+                action: "offer_letter_created",
+                reason: "Offer letter automatically created and sent when status changed to offer_letter_sent",
+                details: "Automated offer letter creation and DocuSign sending triggered by status update",
+                metadata: {
+                  triggeredBy: "status_update",
+                  newStatus: "offer_letter_sent",
+                  offerLetterId: createdOffer.data.id,
+                },
+              });
+            }
+          } else {
+            logger.info(`[OFFER_LETTER_SKIP] RequestID: ${requestId} | Offer letter already exists for loan application ${loanApplicationId}, skipping creation`);
+          }
+        }
+
+        return { auditEntry, snapshotCreated };
+      });
+
+      const { auditEntry, snapshotCreated } = result;
+
+      logger.info(`[STATUS_UPDATE_TRANSACTION_COMPLETE] RequestID: ${requestId} | Database transaction completed successfully`);
 
       // Send notification to the loan applicant
       try {
@@ -250,6 +373,8 @@ export abstract class StatusService {
         // Don't fail the status update if notification fails
       }
 
+      logger.info(`[STATUS_UPDATE_SUCCESS] RequestID: ${requestId} | Status update completed successfully | Duration: ${Date.now() - parseInt(requestId.split('-')[0])}ms`);
+
       return {
         success: true,
         previousStatus: currentApplication.status as LoanApplicationStatus,
@@ -259,7 +384,7 @@ export abstract class StatusService {
         auditEntryId: auditEntry.id,
       };
     } catch (error: any) {
-      logger.error("Error updating loan application status:", error);
+      logger.error(`[STATUS_UPDATE_ERROR] RequestID: ${requestId} | Error updating loan application status:`, error);
       if (error.status) throw error;
       throw httpError(500, "[STATUS_UPDATE_ERROR] Failed to update loan application status.");
     }
