@@ -161,43 +161,71 @@ async function handleDocuSignStatusUpdate(event: any) {
       })
       .where(eq(offerLetters.id, offerLetter.id));
 
+    // Log audit trail entry for all status changes
+    try {
+      logger.info(`Creating audit trail for offer letter ${offerLetter.id} with status ${status}, createdBy: ${offerLetter.createdBy}`);
+      
+      // Get the user who created the offer letter for audit trail
+      const user = offerLetter.createdBy ? await db.query.users.findFirst({
+        where: eq(users.id, offerLetter.createdBy),
+      }) : null;
+
+      if (user) {
+        logger.info(`Found user ${user.id} for audit trail, creating entry`);
+        
+        // Map status to audit action
+        let auditAction: string;
+        let reason: string;
+        
+        switch (status) {
+          case "sent":
+            auditAction = "offer_letter_sent";
+            reason = "Offer letter sent via DocuSign";
+            break;
+          case "delivered":
+            auditAction = "offer_letter_delivered";
+            reason = "Offer letter delivered to recipient";
+            break;
+          case "completed":
+            auditAction = "offer_letter_signed";
+            reason = "Offer letter signed via DocuSign";
+            break;
+          case "declined":
+            auditAction = "offer_letter_declined";
+            reason = "Offer letter declined via DocuSign";
+            break;
+          default:
+            auditAction = "offer_letter_updated";
+            reason = `Offer letter status updated to ${status}`;
+        }
+        
+        await AuditTrailService.logAction({
+          loanApplicationId: offerLetter.loanApplicationId,
+          userId: user.id,
+          action: auditAction,
+          reason,
+          details: `DocuSign envelope ${envelopeId} was ${status}. Offer letter ${offerLetter.offerNumber} status updated.`,
+          metadata: {
+            envelopeId,
+            offerLetterId: offerLetter.id,
+            offerNumber: offerLetter.offerNumber,
+            docuSignStatus: status,
+            webhookEvent: event.event,
+          },
+        });
+        
+        logger.info(`Successfully created audit trail entry for ${auditAction}`);
+      } else {
+        logger.warn(`No user found for offer letter ${offerLetter.id}, createdBy: ${offerLetter.createdBy}`);
+      }
+    } catch (auditError) {
+      logger.error("Failed to log audit trail for DocuSign status update:", auditError);
+      // Don't fail the entire operation if audit logging fails
+    }
+
     // Update loan application status if offer letter was signed or declined
     if (status === "completed" || status === "declined") {
       const newLoanStatus = status === "completed" ? "offer_letter_signed" : "offer_letter_declined";
-      
-      await db
-        .update(loanApplications)
-        .set({
-          status: newLoanStatus,
-          updatedAt: new Date(),
-        })
-        .where(eq(loanApplications.id, offerLetter.loanApplicationId));
-
-      // Log audit trail entry
-      try {
-        // Get the user who created the offer letter for audit trail
-        const user = offerLetter.createdBy ? await db.query.users.findFirst({
-          where: eq(users.id, offerLetter.createdBy),
-        }) : null;
-
-        if (user) {
-          await AuditTrailService.logAction({
-            loanApplicationId: offerLetter.loanApplicationId,
-            userId: user.id,
-            action: status === "completed" ? "offer_letter_signed" : "offer_letter_declined",
-            reason: `Offer letter ${status} via DocuSign`,
-            details: `DocuSign envelope ${envelopeId} was ${status}`,
-            metadata: {
-              envelopeId,
-              offerLetterId: offerLetter.id,
-              docuSignStatus: status,
-            },
-          });
-        }
-      } catch (auditError) {
-        logger.error("Failed to log audit trail for DocuSign status update:", auditError);
-        // Don't fail the entire operation if audit logging fails
-      }
 
       // Update loan application status directly (without triggering automation)
       if (newLoanStatus) {
