@@ -38,7 +38,13 @@ export const BaseTemplate = ({
 }: BaseTemplateProps) => {
   return (
     <Html>
-      <Head />
+      <Head>
+        <style>{`
+          @media (prefers-color-scheme: dark) {
+            img[data-keep-white="true"] { filter: invert(1) hue-rotate(180deg) brightness(1.1) saturate(1.1); }
+          }
+        `}</style>
+      </Head>
       <Preview>{previewText}</Preview>
       <Body style={main}>
         <Container style={container}>
@@ -71,6 +77,7 @@ export const BaseTemplate = ({
                   src="https://pjccitj0ny.ufs.sh/f/ewYz0SdNs1jLYEnXGXjU2OF53aB9PrCHtxwbNlZyf47nXIo1"
                   alt="Facebook"
                   style={socialIcon}
+                  data-keep-white="true"
                 />
               </Link>
               <Link href="https://www.instagram.com/melaninkapital/?__d=1" style={socialLink}>
@@ -78,6 +85,7 @@ export const BaseTemplate = ({
                   src="https://pjccitj0ny.ufs.sh/f/ewYz0SdNs1jL0qNIjdO5GwlgmOu27Li9VbzJxrfDeIFNkcvs"
                   alt="Instagram"
                   style={socialIcon}
+                  data-keep-white="true"
                 />
               </Link>
               <Link href="https://www.linkedin.com/company/melaninkapital/mycompany/?viewAsMember=true" style={socialLink}>
@@ -85,6 +93,7 @@ export const BaseTemplate = ({
                   src="https://pjccitj0ny.ufs.sh/f/ewYz0SdNs1jLDIGcJzmLUeVBpSYWqgsFti4nwPudk2hly6rv"
                   alt="LinkedIn"
                   style={socialIcon}
+                  data-keep-white="true"
                 />
               </Link>
               <Link href="https://twitter.com/MelaninKapital" style={socialLink}>
@@ -92,6 +101,7 @@ export const BaseTemplate = ({
                   src="https://pjccitj0ny.ufs.sh/f/ewYz0SdNs1jLU1pjEXnnMtilx8uJwjYCHPm4zGDrRo9UyaOW"
                   alt="Twitter"
                   style={socialIcon}
+                  data-keep-white="true"
                 />
               </Link>
             </Section>
