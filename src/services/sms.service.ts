@@ -42,12 +42,11 @@ export class SmsService {
    * @param otp The OTP code to send
    * @returns Promise with the result of the SMS sending operation
    */
-  public async sendOtp(phoneNumber: string, otp: string): Promise<any> {
+  public async sendOtp(phoneNumber: string, otp: string, firstName: string): Promise<any> {
     try {
       const options = {
         to: [phoneNumber],
-        message: `Your verification code is: ${otp}. Valid for 10 minutes. Do not share this code with anyone.`,
-        // Use 'MKAP' as the sender ID (optional, depends on your Africa's Talking configuration)
+        message: `Dear ${firstName}, your verification code is: ${otp} valid for 10 minutes. Please do not share this code with anyone.`,
         from: process.env.AT_SENDER_ID,
       };
 

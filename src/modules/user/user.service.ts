@@ -99,7 +99,7 @@ export abstract class User {
         .where(eq(users.id, user.id));
 
       // Send OTP via SMS
-      await smsService.sendOtp(user.phoneNumber, otp);
+      await smsService.sendOtp(user.phoneNumber, otp, user.firstName || "Customer");
 
       return {
         success: true,
