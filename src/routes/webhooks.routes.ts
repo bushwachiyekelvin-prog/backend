@@ -1,4 +1,4 @@
-import { FastifyInstance } from "fastify";
+import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { docuSignService, DocuSignWebhookEvent } from "../services/docusign.service";
 import { db } from "../db/client";
 import { offerLetters } from "../db/schema/offerLetters";
@@ -8,7 +8,11 @@ import { applicationAuditTrail } from "../db/schema/applicationAuditTrail";
 import { eq, and, isNull } from "drizzle-orm";
 import { logger } from "../utils/logger";
 import { AuditTrailService } from "../modules/audit-trail/audit-trail.service";
-import { StatusService } from "../modules/status/status.service";
+import { verifyClerkWebhook } from "../utils/webhook.utils";
+import { extractEmailUpdateFromWebhook, extractUserDataFromWebhook } from "../modules/user/user.utils";
+import { sendWelcomeEmail } from "../utils/email.utils";
+import { User } from "../modules/user/user.service";
+import { emailService } from "../services/email.service";
 
 export async function webhookRoutes(fastify: FastifyInstance) {
   // DocuSign webhook endpoint
@@ -59,6 +63,128 @@ export async function webhookRoutes(fastify: FastifyInstance) {
       reply.code(500).send({ error: "Internal server error" });
     }
   });
+
+  // Clerk webhook endpoint
+  fastify.post(
+    "/clerk",
+    { config: { rawBody: true } },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const body: any = (request as any).rawBody || request.body;
+        const headers = {
+          "svix-id": (request.headers["svix-id"] as string) || undefined,
+          "svix-timestamp": (request.headers["svix-timestamp"] as string) || undefined,
+          "svix-signature": (request.headers["svix-signature"] as string) || undefined,
+        } as const;
+
+        const webhookResult = verifyClerkWebhook(body, headers);
+        if (!webhookResult.success) {
+          return reply.code(400).send({
+            error: webhookResult.error?.message || "Invalid webhook signature",
+            code: webhookResult.error?.code || "WEBHOOK_VERIFICATION_FAILED",
+          });
+        }
+
+        const { event } = webhookResult;
+        const { type } = event!;
+
+        if (type === "user.created") {
+          const userDataResult = extractUserDataFromWebhook(event!);
+          if (!userDataResult.success) {
+            return reply.code(400).send({
+              error:
+                userDataResult.error?.message ||
+                `Missing required fields: ${userDataResult.missingFields?.join(", ")}`,
+              code: userDataResult.error?.code || "INVALID_METADATA",
+            });
+          }
+
+          const userResult = await User.signUp(userDataResult.userData!);
+
+          // Send welcome email async (non-blocking)
+          sendWelcomeEmail(
+            userDataResult.userData!.firstName,
+            userDataResult.userData!.email,
+          ).catch((error) => {
+            logger.error("Unhandled error sending welcome email:", error);
+          });
+
+          // Send phone verification OTP if user exists
+          const user = await User.findByEmail(userDataResult.userData!.email);
+          if (user) {
+            User.sendPhoneVerificationOtp(user.clerkId).catch((error) => {
+              logger.error("Unhandled error sending phone verification OTP:", error);
+            });
+          }
+
+          return reply.send(userResult);
+        }
+
+        if (type === "user.updated") {
+          const updateInfo = extractEmailUpdateFromWebhook(event!);
+          if (!updateInfo.success) {
+            return reply.code(400).send({
+              error: updateInfo.error?.message || "Invalid webhook payload",
+              code: updateInfo.error?.code || "EMAIL_UPDATE_EXTRACTION_FAILED",
+            });
+          }
+
+          const updateResult = await User.updateEmail(
+            updateInfo.clerkId!,
+            updateInfo.email!,
+          );
+          return reply.send(updateResult);
+        }
+
+        if (type === "email.created") {
+          try {
+            const payload: any = event?.data || {};
+            const code: string | undefined = payload?.data?.otp_code;
+            const toEmail: string | undefined = payload?.to_email_address;
+
+            if (!code || !toEmail) {
+              logger.warn("email.created missing otp_code or to_email_address", { codePresent: !!code, toEmailPresent: !!toEmail });
+              return reply.code(200).send({ received: true, ignored: true });
+            }
+
+            let firstName = "";
+            try {
+              const user = await User.findByEmail(toEmail);
+              if (user?.firstName) firstName = user.firstName;
+            } catch (e) {
+              logger.warn("Could not fetch user by email for firstName; proceeding without it", { toEmail });
+            }
+
+            const sendResult = await emailService.sendVerificationCodeEmail({
+              firstName,
+              email: toEmail,
+              code,
+            });
+
+            if (!sendResult.success) {
+              logger.error("Failed to dispatch verification email", { toEmail, error: sendResult.error });
+              return reply.code(500).send({ error: "EMAIL_SEND_FAILED" });
+            }
+
+            return reply.send({ received: true, messageId: sendResult.messageId });
+          } catch (e) {
+            logger.error("Unexpected error handling email.created", e);
+            return reply.code(500).send({ error: "INTERNAL_ERROR" });
+          }
+        }
+
+        return reply
+          .code(200)
+          .send({ received: true, ignored: true, type });
+      } catch (err) {
+        logger.error("Unexpected error while handling Clerk webhook:", err);
+        return reply.code(400).send({
+          error: "Unexpected error while handling Clerk webhook",
+          code: "UNEXPECTED_ERROR",
+        });
+      }
+    },
+  );
 
   // Health check for webhooks
   fastify.get("/health", async (request, reply) => {

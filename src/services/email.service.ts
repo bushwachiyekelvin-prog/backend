@@ -3,6 +3,8 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { logger } from '../utils/logger';
 import { config } from "dotenv";
+import { render } from '@react-email/render';
+import VerificationCodeTemplate from '../templates/email/verification-code-template';
 
 config({
   path: ".env.local"
@@ -24,6 +26,12 @@ export interface EmailData {
   subject: string;
   html: string;
   from?: string;
+}
+
+export interface VerificationEmailData {
+  firstName?: string;
+  email: string;
+  code: string;
 }
 
 export class EmailService {
@@ -109,6 +117,32 @@ export class EmailService {
       return { success: true, messageId: result.data?.id };
     } catch (error) {
       logger.error('Error sending email:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  async sendVerificationCodeEmail(data: VerificationEmailData): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    try {
+      const html = await render(
+        VerificationCodeTemplate({ firstName: data.firstName || '', code: data.code })
+      );
+
+      const result = await this.resend.emails.send({
+        from: process.env.FROM_EMAIL || 'Melanin Kapital <nore@melaninkapital.com>',
+        to: [data.email],
+        subject: `Your verification code is ${data.code}`,
+        html,
+      });
+
+      if (result.error) {
+        logger.error('Failed to send verification code email:', result.error);
+        return { success: false, error: result.error.message };
+      }
+
+      logger.info(`Verification email sent successfully to ${data.email}`, { messageId: result.data?.id });
+      return { success: true, messageId: result.data?.id };
+    } catch (error) {
+      logger.error('Error sending verification code email:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
