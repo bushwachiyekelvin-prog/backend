@@ -15,7 +15,7 @@ import { DocumentRequestsListResponseSchema, DocumentRequestStatisticsResponseSc
 import { handleRoute, extractParams, extractQuery } from "./utils/route-handlers";
 import { ResponseCachingService } from "../modules/response-caching/response-caching.service";
 import { CachingService } from "../modules/caching/caching.service";
-import { loanApplicationStatusEnum } from "../db/schema/loanApplications";
+import type { loanApplicationStatusEnum } from "../db/schema";
 
 type LoanApplicationStatusType = (typeof loanApplicationStatusEnum.enumValues)[number];
 
@@ -49,7 +49,7 @@ export async function loanApplicationsRoutes(fastify: FastifyInstance) {
         
         // Invalidate loan applications list cache for this user
         try {
-          await CachingService.invalidatePattern(`loan_application:*`);
+          await CachingService.invalidatePattern("loan_application:*");
           logger.debug("Cache invalidated after creating loan application");
         } catch (cacheError) {
           logger.error("Error invalidating cache after creating loan application:", cacheError);

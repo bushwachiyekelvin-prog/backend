@@ -143,12 +143,21 @@ export abstract class CachingService {
     try {
       const client = await CachingService.getClient();
       const info = await client.info();
-      const keys = await client.keys('*');
+      const keys: string[] = [];
+      let cursor = '0';
+      
+      // Use SCAN instead of KEYS to avoid permission issues
+      do {
+        const result = await client.scan(cursor, { MATCH: '*', COUNT: 100 });
+        cursor = result.cursor;
+        keys.push(...result.keys);
+        if (keys.length >= 100) break; // Limit to first 100 keys
+      } while (cursor !== '0');
       
       return {
         connected: CachingService.isConnected,
         info: CachingService.parseRedisInfo(info),
-        keys: keys.slice(0, 100), // Limit to first 100 keys
+        keys: keys.slice(0, 100),
       };
     } catch (error) {
       logger.error("Failed to get cache stats:", error);
@@ -234,7 +243,15 @@ export abstract class CachingService {
   static async invalidatePattern(pattern: string): Promise<number> {
     try {
       const client = await CachingService.getClient();
-      const keys = await client.keys(pattern);
+      const keys: string[] = [];
+      let cursor = '0';
+      
+      // Use SCAN instead of KEYS to avoid permission issues
+      do {
+        const result = await client.scan(cursor, { MATCH: pattern, COUNT: 100 });
+        cursor = result.cursor;
+        keys.push(...result.keys);
+      } while (cursor !== '0');
       
       if (keys.length > 0) {
         await client.del(keys);
