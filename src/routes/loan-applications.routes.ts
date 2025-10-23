@@ -1,7 +1,7 @@
-import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { getAuth } from "@clerk/fastify";
 import { LoanApplicationsService } from "../modules/loan-applications/loan-applications.service";
-import { LoanApplicationsModel } from "../modules/loan-applications/loan-applications.model";
+import type { LoanApplicationsModel } from "../modules/loan-applications/loan-applications.model";
 import { LoanApplicationsSchemas } from "../modules/loan-applications/loan-applications.schemas";
 import { UserModel } from "../modules/user/user.model";
 import { logger } from "../utils/logger";
@@ -9,7 +9,6 @@ import { AuditTrailService } from "../modules/audit-trail/audit-trail.service";
 import { SnapshotService } from "../modules/snapshots/snapshot.service";
 import { DocumentRequestService } from "../modules/document-requests/document-request.service";
 import { StatusService } from "../modules/status/status.service";
-// import { StatusModel } from "../modules/status/status.model";
 import { AuditTrailResponseSchema, AuditTrailSummaryResponseSchema, AuditTrailQuerySchema, AuditTrailErrorResponses } from "./schemas/audit-trail.schemas";
 import { SnapshotResponseSchema, SnapshotsListResponseSchema, SnapshotErrorResponses } from "./schemas/snapshots.schemas";
 import { DocumentRequestsListResponseSchema, DocumentRequestStatisticsResponseSchema, DocumentRequestQuerySchema, DocumentRequestErrorResponses } from "./schemas/document-requests.schemas";

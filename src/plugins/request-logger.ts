@@ -1,7 +1,7 @@
 /**
  * Request logger plugin for Fastify (flattened)
  */
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
 import { logger } from '../utils/logger';
 
@@ -11,7 +11,7 @@ declare module 'fastify' {
   }
 }
 
-export const requestLoggerPlugin = fastifyPlugin(async function (fastify: FastifyInstance) {
+export const requestLoggerPlugin = fastifyPlugin(async (fastify: FastifyInstance) => {
   // Decorate request with a startTime property to compute response duration
   fastify.decorateRequest('startTime', 0n as unknown as bigint);
 

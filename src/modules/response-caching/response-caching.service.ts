@@ -1,4 +1,4 @@
-import { FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyRequest, FastifyReply } from 'fastify';
 import { CachingService } from '../caching/caching.service';
 import { logger } from '../../utils/logger';
 
@@ -43,7 +43,7 @@ export abstract class ResponseCachingService {
       varyKey = `|vary:${varyHeaders}`;
     }
 
-    return `${this.cachePrefix}:${method}:${url}:${query}:${params}${varyKey}`;
+    return `${ResponseCachingService.cachePrefix}:${method}:${url}:${query}:${params}${varyKey}`;
   }
 
   /**
@@ -56,7 +56,7 @@ export abstract class ResponseCachingService {
     }
 
     // Skip cache if custom skip function returns true
-    if (options.skipCache && options.skipCache(request)) {
+    if (options.skipCache?.(request)) {
       return true;
     }
 
@@ -73,11 +73,11 @@ export abstract class ResponseCachingService {
    */
   static async getCachedResponse(request: FastifyRequest, options: CacheOptions = {}): Promise<CachedResponse | null> {
     try {
-      if (this.shouldSkipCache(request, options)) {
+      if (ResponseCachingService.shouldSkipCache(request, options)) {
         return null;
       }
 
-      const cacheKey = this.generateCacheKey(request, options);
+      const cacheKey = ResponseCachingService.generateCacheKey(request, options);
       const cached = await CachingService.get<CachedResponse>(cacheKey);
 
       if (cached) {
@@ -88,11 +88,10 @@ export abstract class ResponseCachingService {
         if (now < expiresAt) {
           logger.debug(`Response cache HIT: ${cacheKey}`);
           return cached;
-        } else {
+        }
           // Cache expired, remove it
           await CachingService.delete(cacheKey);
           logger.debug(`Response cache EXPIRED: ${cacheKey}`);
-        }
       }
 
       logger.debug(`Response cache MISS: ${cacheKey}`);
@@ -113,12 +112,12 @@ export abstract class ResponseCachingService {
     options: CacheOptions = {}
   ): Promise<void> {
     try {
-      if (this.shouldSkipCache(request, options)) {
+      if (ResponseCachingService.shouldSkipCache(request, options)) {
         return;
       }
 
-      const cacheKey = this.generateCacheKey(request, options);
-      const ttl = options.ttl || this.defaultTTL;
+      const cacheKey = ResponseCachingService.generateCacheKey(request, options);
+      const ttl = options.ttl || ResponseCachingService.defaultTTL;
 
       const cachedResponse: CachedResponse = {
         statusCode: reply.statusCode,
@@ -150,7 +149,7 @@ export abstract class ResponseCachingService {
       let invalidated = 0;
       
       for (const tag of tags) {
-        const pattern = `${this.cachePrefix}:*:tags`;
+        const pattern = `${ResponseCachingService.cachePrefix}:*:tags`;
         // This is a simplified approach - in production, you might want to use Redis sets for tags
         const keys = await CachingService.invalidatePattern(pattern);
         invalidated += keys;
@@ -169,7 +168,7 @@ export abstract class ResponseCachingService {
    */
   static async invalidateByPattern(pattern: string): Promise<number> {
     try {
-      const fullPattern = `${this.cachePrefix}:${pattern}`;
+      const fullPattern = `${ResponseCachingService.cachePrefix}:${pattern}`;
       const invalidated = await CachingService.invalidatePattern(fullPattern);
       
       logger.debug(`Invalidated ${invalidated} cache entries by pattern: ${pattern}`);
@@ -185,7 +184,7 @@ export abstract class ResponseCachingService {
    */
   static async clearAll(): Promise<void> {
     try {
-      await this.invalidateByPattern('*');
+      await ResponseCachingService.invalidateByPattern('*');
       logger.debug('Cleared all response cache');
     } catch (error) {
       logger.error('Error clearing response cache:', error);

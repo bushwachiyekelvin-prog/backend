@@ -1,10 +1,9 @@
-import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { docuSignService, DocuSignWebhookEvent } from "../services/docusign.service";
-import { db } from "../db/client";
-import { offerLetters } from "../db/schema/offerLetters";
-import { loanApplications } from "../db/schema/loanApplications";
-import { users } from "../db/schema/users";
-import { applicationAuditTrail } from "../db/schema/applicationAuditTrail";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { docuSignService, type DocuSignWebhookEvent } from "../services/docusign.service";
+import { db } from "../db";
+import { offerLetters } from "../db/schema";
+import { loanApplications } from "../db/schema";
+import { users } from "../db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { logger } from "../utils/logger";
 import { AuditTrailService } from "../modules/audit-trail/audit-trail.service";
@@ -101,6 +100,8 @@ export async function webhookRoutes(fastify: FastifyInstance) {
 
           const userResult = await User.signUp(userDataResult.userData!);
 
+
+
           // Send welcome email async (non-blocking)
           sendWelcomeEmail(
             userDataResult.userData!.firstName,
@@ -150,9 +151,13 @@ export async function webhookRoutes(fastify: FastifyInstance) {
             let firstName = "";
             try {
               const user = await User.findByEmail(toEmail);
-              if (user?.firstName) firstName = user.firstName;
+              if (!user) {
+                logger.warn("User not found by email for firstName; proceeding without it", { toEmail });
+              } else if (user.firstName) {
+                firstName = user.firstName;
+              }
             } catch (e) {
-              logger.warn("Could not fetch user by email for firstName; proceeding without it", { toEmail });
+              logger.warn("Lookup errored; proceeding without firstName", { toEmail, error: e instanceof Error ? e.message : e });
             }
 
             const sendResult = await emailService.sendVerificationCodeEmail({
@@ -247,7 +252,7 @@ async function handleDocuSignStatusUpdate(event: any) {
     // Update offer letter status based on DocuSign status
     let newOfferLetterStatus = offerLetter.status;
     let newDocuSignStatus = offerLetter.docuSignStatus;
-    let updateData: any = {
+    const updateData: any = {
       updatedAt: new Date(),
     };
 

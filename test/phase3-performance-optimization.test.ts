@@ -158,8 +158,8 @@ class MockQueryOptimizationService {
       async () => {
         const application = await mockDb.query.loanApplications.findFirst();
         const [auditTrail, statistics] = await Promise.all([
-          this.getOptimizedAuditTrail({ loanApplicationId, limit: 10 }),
-          this.getDocumentStatistics(loanApplicationId),
+          MockQueryOptimizationService.getOptimizedAuditTrail({ loanApplicationId, limit: 10 }),
+          MockQueryOptimizationService.getDocumentStatistics(loanApplicationId),
         ]);
 
         return {

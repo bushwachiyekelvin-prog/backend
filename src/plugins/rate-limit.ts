@@ -1,11 +1,11 @@
 /**
  * Rate limiting plugin for Fastify (flattened)
  */
-import { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
 import fastifyRateLimit from '@fastify/rate-limit';
 
-export const rateLimitPlugin = fastifyPlugin(async function (fastify: FastifyInstance) {
+export const rateLimitPlugin = fastifyPlugin(async (fastify: FastifyInstance) => {
   const max = Number(process.env.RATE_LIMIT_MAX || 100);
   const timeWindow = process.env.RATE_LIMIT_WINDOW || '1 minute';
 

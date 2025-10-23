@@ -1,5 +1,5 @@
-import { db } from "../../db/client";
-import { documentRequests, DocumentRequestStatus, RequestedDocumentType } from "../../db/schema/documentRequests";
+import { db } from "../../db";
+import { documentRequests, type DocumentRequestStatus, type RequestedDocumentType } from "../../db/schema/documentRequests";
 import { eq, and, desc } from "drizzle-orm";
 
 function httpError(status: number, message: string) {

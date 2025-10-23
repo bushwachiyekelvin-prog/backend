@@ -1,5 +1,5 @@
-import { db } from "../../db/client";
-import { applicationAuditTrail, AuditAction } from "../../db/schema/applicationAuditTrail";
+import { db } from "../../db";
+import { applicationAuditTrail, type AuditAction } from "../../db/schema";
 import { eq, desc, and } from "drizzle-orm";
 
 function httpError(status: number, message: string) {

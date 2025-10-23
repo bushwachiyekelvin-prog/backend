@@ -1,4 +1,4 @@
-import { OfferLettersModel } from "./offer-letters.model";
+import type { OfferLettersModel } from "./offer-letters.model";
 
 function toNumber(val: unknown): number | null {
   if (val === null || val === undefined) return null;

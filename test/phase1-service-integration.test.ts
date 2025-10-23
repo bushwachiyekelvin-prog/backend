@@ -140,7 +140,7 @@ describe("Phase 1 - Service Integration Tests", () => {
       expect(summary.lastAction).toBe("application_created");
       expect(summary.lastActionAt).toBeDefined();
       expect(summary.actions).toBeDefined();
-      expect(summary.actions["application_created"]).toBeGreaterThan(0);
+      expect(summary.actions.application_created).toBeGreaterThan(0);
     });
 
     it("should log multiple actions", async () => {

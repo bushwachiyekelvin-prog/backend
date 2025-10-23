@@ -1,6 +1,6 @@
 import { Resend } from 'resend';
-import { readFileSync } from 'fs';
-import { join } from 'path';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { logger } from '../utils/logger';
 import { config } from "dotenv";
 import { render } from '@react-email/render';

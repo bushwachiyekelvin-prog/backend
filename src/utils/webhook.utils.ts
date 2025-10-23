@@ -1,6 +1,6 @@
 import { Webhook } from "svix";
 import { logger } from "./logger";
-import { WebhookEvent } from "@clerk/fastify";
+import type { WebhookEvent } from "@clerk/fastify";
 
 export interface WebhookVerificationResult {
   success: boolean;

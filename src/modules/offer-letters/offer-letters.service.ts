@@ -1,17 +1,17 @@
-import { and, eq, isNull, desc, count, lt, gte } from "drizzle-orm";
+import { and, count, desc, eq, gte, isNull, lt } from "drizzle-orm";
 import { db } from "../../db";
-import { offerLetters } from "../../db/schema/offerLetters";
-import { loanApplications } from "../../db/schema/loanApplications";
-import { users } from "../../db/schema/users";
-import { OfferLettersModel } from "./offer-letters.model";
-import { 
-  mapOfferLetterRow, 
-  generateOfferNumber,
-  toNumber 
-} from "./offer-letters.mapper";
+import { loanApplications, offerLetters, users } from "../../db/schema";
+import type { OfferLettersModel } from "./offer-letters.model";
+import { generateOfferNumber, mapOfferLetterRow } from "./offer-letters.mapper";
 import { logger } from "../../utils/logger";
-import { docuSignService, CreateEnvelopeRequest } from "../../services/docusign.service";
-import { pdfGeneratorService, LoanOfferLetterData } from "../../services/pdf-generator.service";
+import {
+  type CreateEnvelopeRequest,
+  docuSignService,
+} from "../../services/docusign.service";
+import {
+  type LoanOfferLetterData,
+  pdfGeneratorService,
+} from "../../services/pdf-generator.service";
 import { render } from "@react-email/render";
 import { OfferLetterEmail } from "../../templates/email/offer-letter";
 import { EmailService } from "../../services/email.service";
@@ -21,7 +21,6 @@ function httpError(status: number, message: string) {
   err.status = status;
   return err;
 }
-
 
 export abstract class OfferLettersService {
   /**
@@ -42,12 +41,25 @@ export abstract class OfferLettersService {
 
       // Validate loan application exists and is approved
       const loanApplication = await db.query.loanApplications.findFirst({
-        where: and(eq(loanApplications.id, body.loanApplicationId), isNull(loanApplications.deletedAt)),
+        where: and(
+          eq(loanApplications.id, body.loanApplicationId),
+          isNull(loanApplications.deletedAt),
+        ),
       });
-      if (!loanApplication) throw httpError(404, "[LOAN_APPLICATION_NOT_FOUND] Loan application not found");
+      if (!loanApplication)
+        throw httpError(
+          404,
+          "[LOAN_APPLICATION_NOT_FOUND] Loan application not found",
+        );
 
-      if (loanApplication.status !== "approved" && loanApplication.status !== "offer_letter_sent") {
-        throw httpError(400, "[INVALID_STATUS] Only approved or offer_letter_sent loan applications can have offer letters");
+      if (
+        loanApplication.status !== "approved" &&
+        loanApplication.status !== "offer_letter_sent"
+      ) {
+        throw httpError(
+          400,
+          "[INVALID_STATUS] Only approved or offer_letter_sent loan applications can have offer letters",
+        );
       }
 
       // Check if there's already an active offer letter for this application
@@ -55,19 +67,22 @@ export abstract class OfferLettersService {
         where: and(
           eq(offerLetters.loanApplicationId, body.loanApplicationId),
           eq(offerLetters.isActive, true),
-          isNull(offerLetters.deletedAt)
+          isNull(offerLetters.deletedAt),
         ),
       });
 
       if (existingActiveOffer) {
-        throw httpError(400, "[ACTIVE_OFFER_EXISTS] An active offer letter already exists for this application");
+        throw httpError(
+          400,
+          "[ACTIVE_OFFER_EXISTS] An active offer letter already exists for this application",
+        );
       }
 
       // Get the latest version number for this application
       const latestOffer = await db.query.offerLetters.findFirst({
         where: and(
           eq(offerLetters.loanApplicationId, body.loanApplicationId),
-          isNull(offerLetters.deletedAt)
+          isNull(offerLetters.deletedAt),
         ),
         orderBy: [desc(offerLetters.version)],
       });
@@ -100,10 +115,7 @@ export abstract class OfferLettersService {
         notes: body.notes ?? null,
       };
 
-      const [row] = await db
-        .insert(offerLetters)
-        .values(values)
-        .returning();
+      const [row] = await db.insert(offerLetters).values(values).returning();
 
       const offerLetter = mapOfferLetterRow(row);
 
@@ -115,7 +127,10 @@ export abstract class OfferLettersService {
     } catch (error: any) {
       logger.error("Error creating offer letter:", error);
       if (error?.status) throw error;
-      throw httpError(500, "[CREATE_OFFER_LETTER_ERROR] Failed to create offer letter");
+      throw httpError(
+        500,
+        "[CREATE_OFFER_LETTER_ERROR] Failed to create offer letter",
+      );
     }
   }
 
@@ -141,10 +156,14 @@ export abstract class OfferLettersService {
         .where(and(eq(offerLetters.id, id), isNull(offerLetters.deletedAt)))
         .limit(1);
 
-      if (!existing) throw httpError(404, "[OFFER_LETTER_NOT_FOUND] Offer letter not found");
+      if (!existing)
+        throw httpError(404, "[OFFER_LETTER_NOT_FOUND] Offer letter not found");
 
       if (existing.status !== "draft") {
-        throw httpError(400, "[INVALID_STATUS] Only draft offer letters can be sent");
+        throw httpError(
+          400,
+          "[INVALID_STATUS] Only draft offer letters can be sent",
+        );
       }
 
       // Get loan application details for email template
@@ -157,7 +176,10 @@ export abstract class OfferLettersService {
       });
 
       if (!loanApp) {
-        throw httpError(404, "[LOAN_APPLICATION_NOT_FOUND] Associated loan application not found");
+        throw httpError(
+          404,
+          "[LOAN_APPLICATION_NOT_FOUND] Associated loan application not found",
+        );
       }
 
       // Generate PDF document for the offer letter
@@ -173,11 +195,12 @@ export abstract class OfferLettersService {
         specialConditions: existing.specialConditions || undefined,
         requiresGuarantor: existing.requiresGuarantor,
         requiresCollateral: existing.requiresCollateral,
-        businessName: loanApp.business?.name || undefined
+        businessName: loanApp.business?.name || undefined,
       };
 
-      const pdfBuffer = await pdfGeneratorService.generateOfferLetterPDF(offerLetterData);
-      const pdfBase64 = pdfBuffer.toString('base64');
+      const pdfBuffer =
+        await pdfGeneratorService.generateOfferLetterPDF(offerLetterData);
+      const pdfBase64 = pdfBuffer.toString("base64");
 
       // Create DocuSign envelope with the generated PDF
       const envelopeRequest: CreateEnvelopeRequest = {
@@ -188,8 +211,8 @@ export abstract class OfferLettersService {
             documentId: "1",
             name: `Loan_Offer_Letter_${existing.offerNumber}.pdf`,
             documentBase64: pdfBase64,
-            fileExtension: "pdf"
-          }
+            fileExtension: "pdf",
+          },
         ],
         recipients: {
           signers: [
@@ -205,29 +228,29 @@ export abstract class OfferLettersService {
                     recipientId: "1",
                     pageNumber: "1",
                     xPosition: "100",
-                    yPosition: "600" // Position signature field near the signature section
-                  }
-                ]
-              }
-            }
-          ]
+                    yPosition: "600", // Position signature field near the signature section
+                  },
+                ],
+              },
+            },
+          ],
         },
-        status: "created" // Create as draft first
+        status: "created", // Create as draft first
       };
 
       // Create envelope in DocuSign
       const envelope = await docuSignService.createEnvelope(envelopeRequest);
-      
+
       // Send the envelope to make it available for signing
       await docuSignService.sendEnvelope(envelope.envelopeId);
-      
+
       // Try to get the signing URL, but provide fallback if it fails
       let offerLetterUrl: string;
       try {
         const signingUrl = await docuSignService.getSigningUrl(
-          envelope.envelopeId, 
+          envelope.envelopeId,
           "1", // recipientId
-          `${process.env.APP_URL || 'http://localhost:3000'}/offer-letter-signed` // return URL after signing
+          `${process.env.APP_URL || "http://localhost:3000"}/offer-letter-signed`, // return URL after signing
         );
         offerLetterUrl = signingUrl;
         logger.info(`DocuSign signing URL obtained: ${signingUrl}`);
@@ -237,8 +260,10 @@ export abstract class OfferLettersService {
         offerLetterUrl = `https://demo.docusign.net/signing/documents/${envelope.envelopeId}`;
         logger.info(`Using fallback URL: ${offerLetterUrl}`);
       }
-      
-      logger.info(`DocuSign envelope created and sent successfully: ${envelope.envelopeId}`);
+
+      logger.info(
+        `DocuSign envelope created and sent successfully: ${envelope.envelopeId}`,
+      );
       logger.info(`Offer letter URL: ${offerLetterUrl}`);
 
       // Update offer letter with DocuSign details
@@ -272,7 +297,7 @@ export abstract class OfferLettersService {
             specialConditions: existing.specialConditions || undefined,
             requiresGuarantor: existing.requiresGuarantor,
             requiresCollateral: existing.requiresCollateral,
-          })
+          }),
         );
 
         const emailService = new EmailService();
@@ -282,7 +307,9 @@ export abstract class OfferLettersService {
           html: emailHtml,
         });
 
-        logger.info(`Offer letter email sent to ${body.recipientEmail} for envelope ${envelope.envelopeId}`);
+        logger.info(
+          `Offer letter email sent to ${body.recipientEmail} for envelope ${envelope.envelopeId}`,
+        );
       } catch (emailError) {
         logger.error("Failed to send offer letter email:", emailError);
         // Don't fail the entire operation if email fails
@@ -299,7 +326,10 @@ export abstract class OfferLettersService {
     } catch (error: any) {
       logger.error("Error sending offer letter:", error);
       if (error?.status) throw error;
-      throw httpError(500, "[SEND_OFFER_LETTER_ERROR] Failed to send offer letter");
+      throw httpError(
+        500,
+        "[SEND_OFFER_LETTER_ERROR] Failed to send offer letter",
+      );
     }
   }
 
@@ -329,16 +359,22 @@ export abstract class OfferLettersService {
         whereConditions.push(eq(offerLetters.status, query.status));
       }
       if (query.docuSignStatus) {
-        whereConditions.push(eq(offerLetters.docuSignStatus, query.docuSignStatus));
+        whereConditions.push(
+          eq(offerLetters.docuSignStatus, query.docuSignStatus),
+        );
       }
       if (query.loanApplicationId) {
-        whereConditions.push(eq(offerLetters.loanApplicationId, query.loanApplicationId));
+        whereConditions.push(
+          eq(offerLetters.loanApplicationId, query.loanApplicationId),
+        );
       }
       if (query.isActive !== undefined) {
         whereConditions.push(eq(offerLetters.isActive, query.isActive));
       }
       if (query.expiresBefore) {
-        whereConditions.push(lt(offerLetters.expiresAt, new Date(query.expiresBefore)));
+        whereConditions.push(
+          lt(offerLetters.expiresAt, new Date(query.expiresBefore)),
+        );
       }
 
       // Get total count
@@ -362,16 +398,19 @@ export abstract class OfferLettersService {
           },
         })
         .from(offerLetters)
-        .leftJoin(loanApplications, eq(offerLetters.loanApplicationId, loanApplications.id))
+        .leftJoin(
+          loanApplications,
+          eq(offerLetters.loanApplicationId, loanApplications.id),
+        )
         .where(and(...whereConditions))
         .orderBy(desc(offerLetters.createdAt))
         .limit(limit)
         .offset(offset);
 
-      const offerLettersList = rows.map(row => 
+      const offerLettersList = rows.map((row) =>
         mapOfferLetterRow(row.offerLetter, {
           loanApplication: row.loanApplication,
-        })
+        }),
       );
 
       return {
@@ -388,7 +427,10 @@ export abstract class OfferLettersService {
     } catch (error: any) {
       logger.error("Error listing offer letters:", error);
       if (error?.status) throw error;
-      throw httpError(500, "[LIST_OFFER_LETTERS_ERROR] Failed to list offer letters");
+      throw httpError(
+        500,
+        "[LIST_OFFER_LETTERS_ERROR] Failed to list offer letters",
+      );
     }
   }
 
@@ -421,11 +463,15 @@ export abstract class OfferLettersService {
           },
         })
         .from(offerLetters)
-        .leftJoin(loanApplications, eq(offerLetters.loanApplicationId, loanApplications.id))
+        .leftJoin(
+          loanApplications,
+          eq(offerLetters.loanApplicationId, loanApplications.id),
+        )
         .where(and(eq(offerLetters.id, id), isNull(offerLetters.deletedAt)))
         .limit(1);
 
-      if (!row) throw httpError(404, "[OFFER_LETTER_NOT_FOUND] Offer letter not found");
+      if (!row)
+        throw httpError(404, "[OFFER_LETTER_NOT_FOUND] Offer letter not found");
 
       const offerLetter = mapOfferLetterRow(row.offerLetter, {
         loanApplication: row.loanApplication,
@@ -439,7 +485,10 @@ export abstract class OfferLettersService {
     } catch (error: any) {
       logger.error("Error getting offer letter:", error);
       if (error?.status) throw error;
-      throw httpError(500, "[GET_OFFER_LETTER_ERROR] Failed to get offer letter");
+      throw httpError(
+        500,
+        "[GET_OFFER_LETTER_ERROR] Failed to get offer letter",
+      );
     }
   }
 
@@ -465,25 +514,37 @@ export abstract class OfferLettersService {
         .where(and(eq(offerLetters.id, id), isNull(offerLetters.deletedAt)))
         .limit(1);
 
-      if (!existing) throw httpError(404, "[OFFER_LETTER_NOT_FOUND] Offer letter not found");
+      if (!existing)
+        throw httpError(404, "[OFFER_LETTER_NOT_FOUND] Offer letter not found");
 
       if (existing.status !== "draft") {
-        throw httpError(400, "[INVALID_STATUS] Only draft offer letters can be updated");
+        throw httpError(
+          400,
+          "[INVALID_STATUS] Only draft offer letters can be updated",
+        );
       }
 
       const updateSet: Record<string, any> = {
         updatedAt: new Date(),
       };
 
-      if (body.offerAmount !== undefined) updateSet.offerAmount = body.offerAmount;
+      if (body.offerAmount !== undefined)
+        updateSet.offerAmount = body.offerAmount;
       if (body.offerTerm !== undefined) updateSet.offerTerm = body.offerTerm;
-      if (body.interestRate !== undefined) updateSet.interestRate = body.interestRate;
-      if (body.specialConditions !== undefined) updateSet.specialConditions = body.specialConditions;
-      if (body.requiresGuarantor !== undefined) updateSet.requiresGuarantor = body.requiresGuarantor;
-      if (body.requiresCollateral !== undefined) updateSet.requiresCollateral = body.requiresCollateral;
-      if (body.recipientEmail !== undefined) updateSet.recipientEmail = body.recipientEmail;
-      if (body.recipientName !== undefined) updateSet.recipientName = body.recipientName;
-      if (body.expiresAt !== undefined) updateSet.expiresAt = new Date(body.expiresAt);
+      if (body.interestRate !== undefined)
+        updateSet.interestRate = body.interestRate;
+      if (body.specialConditions !== undefined)
+        updateSet.specialConditions = body.specialConditions;
+      if (body.requiresGuarantor !== undefined)
+        updateSet.requiresGuarantor = body.requiresGuarantor;
+      if (body.requiresCollateral !== undefined)
+        updateSet.requiresCollateral = body.requiresCollateral;
+      if (body.recipientEmail !== undefined)
+        updateSet.recipientEmail = body.recipientEmail;
+      if (body.recipientName !== undefined)
+        updateSet.recipientName = body.recipientName;
+      if (body.expiresAt !== undefined)
+        updateSet.expiresAt = new Date(body.expiresAt);
       if (body.notes !== undefined) updateSet.notes = body.notes;
 
       const [row] = await db
@@ -502,7 +563,10 @@ export abstract class OfferLettersService {
     } catch (error: any) {
       logger.error("Error updating offer letter:", error);
       if (error?.status) throw error;
-      throw httpError(500, "[UPDATE_OFFER_LETTER_ERROR] Failed to update offer letter");
+      throw httpError(
+        500,
+        "[UPDATE_OFFER_LETTER_ERROR] Failed to update offer letter",
+      );
     }
   }
 
@@ -516,14 +580,18 @@ export abstract class OfferLettersService {
       const [existing] = await db
         .select()
         .from(offerLetters)
-        .where(and(
-          eq(offerLetters.docuSignEnvelopeId, body.envelopeId),
-          isNull(offerLetters.deletedAt)
-        ))
+        .where(
+          and(
+            eq(offerLetters.docuSignEnvelopeId, body.envelopeId),
+            isNull(offerLetters.deletedAt),
+          ),
+        )
         .limit(1);
 
       if (!existing) {
-        logger.warn(`DocuSign webhook received for unknown envelope: ${body.envelopeId}`);
+        logger.warn(
+          `DocuSign webhook received for unknown envelope: ${body.envelopeId}`,
+        );
         return {
           success: true,
           message: "Webhook processed (envelope not found)",
@@ -582,7 +650,10 @@ export abstract class OfferLettersService {
       };
     } catch (error: any) {
       logger.error("Error processing DocuSign webhook:", error);
-      throw httpError(500, "[DOCUSIGN_WEBHOOK_ERROR] Failed to process DocuSign webhook");
+      throw httpError(
+        500,
+        "[DOCUSIGN_WEBHOOK_ERROR] Failed to process DocuSign webhook",
+      );
     }
   }
 
@@ -607,10 +678,16 @@ export abstract class OfferLettersService {
         .where(and(eq(offerLetters.id, id), isNull(offerLetters.deletedAt)))
         .limit(1);
 
-      if (!existing) throw httpError(404, "[OFFER_LETTER_NOT_FOUND] Offer letter not found");
+      if (!existing)
+        throw httpError(404, "[OFFER_LETTER_NOT_FOUND] Offer letter not found");
 
-      if (["signed", "declined", "voided", "expired"].includes(existing.status)) {
-        throw httpError(400, "[INVALID_STATUS] Offer letter cannot be voided in current status");
+      if (
+        ["signed", "declined", "voided", "expired"].includes(existing.status)
+      ) {
+        throw httpError(
+          400,
+          "[INVALID_STATUS] Offer letter cannot be voided in current status",
+        );
       }
 
       await db
@@ -629,7 +706,10 @@ export abstract class OfferLettersService {
     } catch (error: any) {
       logger.error("Error voiding offer letter:", error);
       if (error?.status) throw error;
-      throw httpError(500, "[VOID_OFFER_LETTER_ERROR] Failed to void offer letter");
+      throw httpError(
+        500,
+        "[VOID_OFFER_LETTER_ERROR] Failed to void offer letter",
+      );
     }
   }
 
@@ -654,11 +734,15 @@ export abstract class OfferLettersService {
         .where(and(eq(offerLetters.id, id), isNull(offerLetters.deletedAt)))
         .limit(1);
 
-      if (!existing) throw httpError(404, "[OFFER_LETTER_NOT_FOUND] Offer letter not found");
+      if (!existing)
+        throw httpError(404, "[OFFER_LETTER_NOT_FOUND] Offer letter not found");
 
       // Only allow deletion of draft offer letters
       if (existing.status !== "draft") {
-        throw httpError(400, "[INVALID_STATUS] Only draft offer letters can be deleted");
+        throw httpError(
+          400,
+          "[INVALID_STATUS] Only draft offer letters can be deleted",
+        );
       }
 
       await db
@@ -676,7 +760,10 @@ export abstract class OfferLettersService {
     } catch (error: any) {
       logger.error("Error deleting offer letter:", error);
       if (error?.status) throw error;
-      throw httpError(500, "[DELETE_OFFER_LETTER_ERROR] Failed to delete offer letter");
+      throw httpError(
+        500,
+        "[DELETE_OFFER_LETTER_ERROR] Failed to delete offer letter",
+      );
     }
   }
 
@@ -684,7 +771,7 @@ export abstract class OfferLettersService {
    * Get expiring offer letters (for reminder system)
    */
   static async getExpiringOfferLetters(
-    hoursUntilExpiry: number = 24,
+    hoursUntilExpiry = 24,
   ): Promise<OfferLettersModel.OfferLetterItem[]> {
     try {
       const expiryThreshold = new Date();
@@ -704,23 +791,31 @@ export abstract class OfferLettersService {
           },
         })
         .from(offerLetters)
-        .leftJoin(loanApplications, eq(offerLetters.loanApplicationId, loanApplications.id))
-        .where(and(
-          eq(offerLetters.isActive, true),
-          eq(offerLetters.status, "sent"),
-          gte(offerLetters.expiresAt, new Date()),
-          lt(offerLetters.expiresAt, expiryThreshold),
-          isNull(offerLetters.deletedAt)
-        ));
+        .leftJoin(
+          loanApplications,
+          eq(offerLetters.loanApplicationId, loanApplications.id),
+        )
+        .where(
+          and(
+            eq(offerLetters.isActive, true),
+            eq(offerLetters.status, "sent"),
+            gte(offerLetters.expiresAt, new Date()),
+            lt(offerLetters.expiresAt, expiryThreshold),
+            isNull(offerLetters.deletedAt),
+          ),
+        );
 
-      return rows.map(row => 
+      return rows.map((row) =>
         mapOfferLetterRow(row.offerLetter, {
           loanApplication: row.loanApplication,
-        })
+        }),
       );
     } catch (error: any) {
       logger.error("Error getting expiring offer letters:", error);
-      throw httpError(500, "[GET_EXPIRING_OFFER_LETTERS_ERROR] Failed to get expiring offer letters");
+      throw httpError(
+        500,
+        "[GET_EXPIRING_OFFER_LETTERS_ERROR] Failed to get expiring offer letters",
+      );
     }
   }
 }

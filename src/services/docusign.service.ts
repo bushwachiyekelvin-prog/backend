@@ -286,12 +286,11 @@ class DocuSignService {
       if (userInfo.accounts && userInfo.accounts.length > 0) {
         const account = userInfo.accounts[0];
         // Store the base URI for use in API calls
-        this.baseUri = account.base_uri + '/restapi';
+        this.baseUri = `${account.base_uri}/restapi`;
         return account.account_id;
-      } else {
+      }
         logger.warn("No accounts found in userinfo response, using environment variable");
         return DOCUSIGN_ACCOUNT_ID || "";
-      }
     } catch (error) {
       logger.error("Error getting DocuSign account ID:", error);
       throw new Error("Failed to get DocuSign account ID");

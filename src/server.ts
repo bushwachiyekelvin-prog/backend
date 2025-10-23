@@ -2,7 +2,7 @@
  * Fastify server entry point - consolidated from app.ts, index.ts, and server.ts
  */
 import 'dotenv/config';
-import Fastify, { FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance } from 'fastify';
 import { config } from 'dotenv';
 import { logger } from './utils/logger';
 import { sql } from 'drizzle-orm';

@@ -1,4 +1,4 @@
-import { BusinessDocumentType } from "../../db/schema/businessDocuments";
+import type { BusinessDocumentType } from "../../db/schema";
 
 export namespace BusinessDocumentsModel {
   // Keep a local runtime enum list to power JSON Schema (must be string[])

@@ -301,7 +301,7 @@ class MockBusinessDocumentsService {
     if (!request) throw new Error("Document request not found");
 
     // Upload the document
-    await this.upsert(clerkId, businessId, documentData);
+    await MockBusinessDocumentsService.upsert(clerkId, businessId, documentData);
 
     // Mark the request as fulfilled
     await mockDocumentRequestService.fulfillRequest(requestId, {

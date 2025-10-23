@@ -1,7 +1,7 @@
 /**
  * User routes for Fastify (flattened)
  */
-import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { clerkClient, getAuth } from "@clerk/fastify";
 import { logger } from "../utils/logger";
 import { User } from "../modules/user/user.service";

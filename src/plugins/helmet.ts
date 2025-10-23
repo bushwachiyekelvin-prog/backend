@@ -1,11 +1,11 @@
 /**
  * Helmet plugin for Fastify (flattened)
  */
-import { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
 import fastifyHelmet from '@fastify/helmet';
 
-export const helmetPlugin = fastifyPlugin(async function (fastify: FastifyInstance) {
+export const helmetPlugin = fastifyPlugin(async (fastify: FastifyInstance) => {
   const isProd = (process.env.NODE_ENV || 'development') === 'production';
 
   await fastify.register(fastifyHelmet, {

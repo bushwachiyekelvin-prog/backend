@@ -37,7 +37,7 @@ const mockResponseCachingService = {
   invalidateByTags: async (tags: string[]) => {
     let invalidated = 0;
     for (const [key, value] of mockResponseCache.entries()) {
-      if (value.tags && value.tags.some((tag: string) => tags.includes(tag))) {
+      if (value.tags?.some((tag: string) => tags.includes(tag))) {
         mockResponseCache.delete(key);
         invalidated++;
       }
@@ -297,7 +297,7 @@ describe("Application Optimization Tests", () => {
       const balancedResult = await mockServiceOptimizationService.optimizeMethod(
         methodName,
         method,
-        cacheKey + "_balanced",
+        `${cacheKey}_balanced`,
         mockServiceOptimizationService.presets.balanced
       );
 

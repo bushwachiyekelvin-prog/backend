@@ -1,7 +1,7 @@
 import { and, eq, isNull, count, desc, or, asc, like, gte, lte, sql, ne } from "drizzle-orm";
 import { db } from "../../db";
 import { loanProducts, loanApplications } from "../../db/schema";
-import { LoanProductsModel } from "./loan-products.model";
+import type { LoanProductsModel } from "./loan-products.model";
 import { logger } from "../../utils/logger";
 
 function httpError(status: number, message: string) {
@@ -175,8 +175,8 @@ export abstract class LoanProductsService {
       if (!clerkId) throw httpError(401, "[UNAUTHORIZED] Missing user context");
 
       // Parse pagination parameters
-      const page = query.page ? parseInt(query.page) : 1;
-      const limit = Math.min(query.limit ? parseInt(query.limit) : 20, 100); // Max 100 items per page
+      const page = query.page ? Number.parseInt(query.page) : 1;
+      const limit = Math.min(query.limit ? Number.parseInt(query.limit) : 20, 100); // Max 100 items per page
       const offset = (page - 1) * limit;
 
       // Build where conditions
@@ -205,10 +205,10 @@ export abstract class LoanProductsService {
 
       // Term range filtering
       if (query.minTerm) {
-        whereConditions.push(gte(loanProducts.minTerm, parseInt(query.minTerm)));
+        whereConditions.push(gte(loanProducts.minTerm, Number.parseInt(query.minTerm)));
       }
       if (query.maxTerm) {
-        whereConditions.push(lte(loanProducts.maxTerm, parseInt(query.maxTerm)));
+        whereConditions.push(lte(loanProducts.maxTerm, Number.parseInt(query.maxTerm)));
       }
 
       // Term unit filtering

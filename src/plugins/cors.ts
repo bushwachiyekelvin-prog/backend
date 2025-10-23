@@ -2,11 +2,11 @@
  * CORS plugin for Fastify
  * This plugin configures CORS settings for the Fastify server
  */
-import { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
 import fastifyCors from '@fastify/cors';
 
-export const corsPlugin = fastifyPlugin(async function (fastify: FastifyInstance) {
+export const corsPlugin = fastifyPlugin(async (fastify: FastifyInstance) => {
   const appUrl = process.env.APP_URL;
   const nodeEnv = process.env.NODE_ENV || 'development';
 

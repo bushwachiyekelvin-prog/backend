@@ -28,10 +28,10 @@ export abstract class SerializationService {
    * Optimize object serialization by removing unnecessary fields and transforming data
    */
   static optimizeObject<T>(obj: T, options: SerializationOptions = {}): T {
-    const opts = { ...this.DEFAULT_OPTIONS, ...options };
+    const opts = { ...SerializationService.DEFAULT_OPTIONS, ...options };
     
     try {
-      return this.transformObject(obj, opts, 0) as T;
+      return SerializationService.transformObject(obj, opts, 0) as T;
     } catch (error) {
       logger.error('Error optimizing object serialization:', error);
       return obj; // Return original object if optimization fails
@@ -42,7 +42,7 @@ export abstract class SerializationService {
    * Transform object recursively
    */
   private static transformObject(obj: any, options: SerializationOptions, depth: number): any {
-    if (depth >= (options.maxDepth || this.MAX_DEPTH)) {
+    if (depth >= (options.maxDepth || SerializationService.MAX_DEPTH)) {
       return '[Max Depth Reached]';
     }
 
@@ -59,7 +59,7 @@ export abstract class SerializationService {
     }
 
     if (Array.isArray(obj)) {
-      return obj.map(item => this.transformObject(item, options, depth + 1));
+      return obj.map(item => SerializationService.transformObject(item, options, depth + 1));
     }
 
     if (typeof obj === 'object') {
@@ -80,7 +80,7 @@ export abstract class SerializationService {
         if (options.transformFields?.[key]) {
           result[key] = options.transformFields[key](value);
         } else {
-          result[key] = this.transformObject(value, options, depth + 1);
+          result[key] = SerializationService.transformObject(value, options, depth + 1);
         }
       }
 
@@ -98,7 +98,7 @@ export abstract class SerializationService {
     
     try {
       // Optimize the object first
-      const optimizedData = this.optimizeObject(data, options);
+      const optimizedData = SerializationService.optimizeObject(data, options);
       
       // Serialize to JSON
       const serialized = JSON.stringify(optimizedData);
@@ -231,7 +231,7 @@ export abstract class SerializationService {
     const startTime = Date.now();
     
     try {
-      const results = items.map(item => this.serializeOptimized(item, options));
+      const results = items.map(item => SerializationService.serializeOptimized(item, options));
       
       const duration = Date.now() - startTime;
       const totalSize = results.reduce((sum, result) => sum + result.size, 0);
@@ -256,9 +256,9 @@ export abstract class SerializationService {
    */
   static createTransformer<T>(options: SerializationOptions) {
     return {
-      serialize: (data: T) => this.serializeOptimized(data, options),
-      deserialize: (serialized: string) => this.deserializeOptimized<T>(serialized),
-      optimize: (data: T) => this.optimizeObject(data, options),
+      serialize: (data: T) => SerializationService.serializeOptimized(data, options),
+      deserialize: (serialized: string) => SerializationService.deserializeOptimized<T>(serialized),
+      optimize: (data: T) => SerializationService.optimizeObject(data, options),
     };
   }
 
@@ -268,7 +268,7 @@ export abstract class SerializationService {
   static async measureSerializationPerformance<T>(
     data: T,
     options: SerializationOptions = {},
-    iterations: number = 100
+    iterations = 100
   ): Promise<{
     avgTime: number;
     avgSize: number;
@@ -280,7 +280,7 @@ export abstract class SerializationService {
 
     for (let i = 0; i < iterations; i++) {
       const startTime = Date.now();
-      const result = this.serializeOptimized(data, options);
+      const result = SerializationService.serializeOptimized(data, options);
       const duration = Date.now() - startTime;
       
       results.push(result);

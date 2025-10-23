@@ -32,7 +32,7 @@ describe("Real Integration Tests", () => {
     await cleanupTestData();
     
     // Create test user with unique email
-    testClerkId = "test_clerk_id_" + Date.now();
+    testClerkId = `test_clerk_id_${Date.now()}`;
     const uniqueEmail = `test_${Date.now()}@example.com`;
     const testUser = await db.insert(users).values({
       clerkId: testClerkId,

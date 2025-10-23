@@ -102,11 +102,11 @@ export abstract class NotificationService {
       // Route to appropriate notification method based on channel
       switch (channel) {
         case 'email':
-          return await this.sendEmailNotification(type, recipient, loanApplication, data);
+          return await NotificationService.sendEmailNotification(type, recipient, loanApplication, data);
         case 'sms':
-          return await this.sendSmsNotification(type, recipient, loanApplication, data);
+          return await NotificationService.sendSmsNotification(type, recipient, loanApplication, data);
         case 'push':
-          return await this.sendPushNotification(type, recipient, loanApplication, data);
+          return await NotificationService.sendPushNotification(type, recipient, loanApplication, data);
         default:
           throw httpError(400, "[INVALID_CHANNEL] Invalid notification channel.");
       }
@@ -144,7 +144,7 @@ export abstract class NotificationService {
 
       // Generate email content based on type
       switch (type) {
-        case 'loan_status_update':
+        case 'loan_status_update': {
           const statusData = data as StatusUpdateNotificationData;
           emailHtml = await render(
             LoanStatusUpdateEmail({
@@ -158,8 +158,9 @@ export abstract class NotificationService {
           );
           subject = `Loan Application Status Update - ${statusData.newStatus}`;
           break;
+        }
 
-        case 'document_request':
+        case 'document_request': {
           const docData = data as DocumentRequestNotificationData;
           emailHtml = await render(
             DocumentRequestEmail({
@@ -172,8 +173,9 @@ export abstract class NotificationService {
           );
           subject = `Document Request - ${docData.documentType}`;
           break;
+        }
 
-        case 'loan_approval':
+        case 'loan_approval': {
           const approvalData = data as LoanApprovalNotificationData;
           emailHtml = await render(
             LoanApprovalEmail({
@@ -188,6 +190,7 @@ export abstract class NotificationService {
           );
           subject = '🎉 Congratulations! Your Loan is Approved';
           break;
+        }
 
         default:
           throw httpError(400, "[UNSUPPORTED_TYPE] Unsupported notification type for email.");
@@ -287,7 +290,7 @@ export abstract class NotificationService {
 
     for (const channel of channels) {
       try {
-        const result = await this.sendNotification({
+        const result = await NotificationService.sendNotification({
           type: 'loan_status_update',
           channel,
           recipientId: userId,
@@ -321,7 +324,7 @@ export abstract class NotificationService {
 
     for (const channel of channels) {
       try {
-        const result = await this.sendNotification({
+        const result = await NotificationService.sendNotification({
           type: 'document_request',
           channel,
           recipientId: userId,
@@ -355,7 +358,7 @@ export abstract class NotificationService {
 
     for (const channel of channels) {
       try {
-        const result = await this.sendNotification({
+        const result = await NotificationService.sendNotification({
           type: 'loan_approval',
           channel,
           recipientId: userId,

@@ -1,5 +1,5 @@
-import { UserModel } from "./user.model";
-import { WebhookEvent } from "@clerk/fastify";
+import type { UserModel } from "./user.model";
+import type { WebhookEvent } from "@clerk/fastify";
 
 // Define proper types for Clerk webhook data
 interface ClerkEmailAddress {
@@ -73,7 +73,7 @@ export const extractUserDataFromWebhook = (
     let dob: Date | undefined;
     if (typeof dobRaw === "string") {
       const parsed = new Date(dobRaw);
-      if (!isNaN(parsed.getTime())) dob = parsed;
+      if (!Number.isNaN(parsed.getTime())) dob = parsed;
     } else if (dobRaw instanceof Date) {
       dob = dobRaw;
     }

@@ -1,4 +1,4 @@
-import { LoanApplicationsModel } from "./loan-applications.model";
+import type { LoanApplicationsModel } from "./loan-applications.model";
 
 function toNumber(val: unknown): number | null {
   if (val === null || val === undefined) return null;

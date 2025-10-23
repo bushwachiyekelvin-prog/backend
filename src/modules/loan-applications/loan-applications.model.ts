@@ -1,8 +1,8 @@
 import {
-  loanApplications,
+  type loanApplications,
   loanApplicationStatusEnum,
   loanPurposeEnum,
-} from "../../db/schema/loanApplications";
+} from "../../db/schema";
 
 export namespace LoanApplicationsModel {
   // Status enums derived from DB

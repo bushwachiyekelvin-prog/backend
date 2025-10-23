@@ -1,4 +1,4 @@
-import { createClient, RedisClientType } from 'redis';
+import { createClient, type RedisClientType } from 'redis';
 import { logger } from "../../utils/logger";
 
 export abstract class CachingService {
@@ -10,12 +10,12 @@ export abstract class CachingService {
    * Initialize Redis connection
    */
   private static async initializeClient(): Promise<void> {
-    if (this.client && this.isConnected) {
+    if (CachingService.client && CachingService.isConnected) {
       return;
     }
 
     try {
-      this.client = createClient({
+      CachingService.client = createClient({
         url: process.env.REDIS_URL || 'redis://localhost:6379',
         socket: {
           reconnectStrategy: (retries) => {
@@ -28,25 +28,25 @@ export abstract class CachingService {
         },
       });
 
-      this.client.on('error', (err) => {
+      CachingService.client.on('error', (err) => {
         logger.error('Redis Client Error:', err);
-        this.isConnected = false;
+        CachingService.isConnected = false;
       });
 
-      this.client.on('connect', () => {
+      CachingService.client.on('connect', () => {
         logger.info('Redis client connected');
-        this.isConnected = true;
+        CachingService.isConnected = true;
       });
 
-      this.client.on('disconnect', () => {
+      CachingService.client.on('disconnect', () => {
         logger.warn('Redis client disconnected');
-        this.isConnected = false;
+        CachingService.isConnected = false;
       });
 
-      await this.client.connect();
+      await CachingService.client.connect();
     } catch (error) {
       logger.error('Failed to initialize Redis client:', error);
-      this.isConnected = false;
+      CachingService.isConnected = false;
       throw error;
     }
   }
@@ -55,11 +55,11 @@ export abstract class CachingService {
    * Get Redis client instance
    */
   private static async getClient(): Promise<RedisClientType> {
-    await this.initializeClient();
-    if (!this.client || !this.isConnected) {
+    await CachingService.initializeClient();
+    if (!CachingService.client || !CachingService.isConnected) {
       throw new Error('Redis client not available');
     }
-    return this.client;
+    return CachingService.client;
   }
 
   /**
@@ -67,8 +67,8 @@ export abstract class CachingService {
    */
   static async set<T>(key: string, value: T, ttlSeconds?: number): Promise<void> {
     try {
-      const client = await this.getClient();
-      const ttl = ttlSeconds || this.defaultTTL;
+      const client = await CachingService.getClient();
+      const ttl = ttlSeconds || CachingService.defaultTTL;
       const serializedValue = JSON.stringify(value);
       
       await client.setEx(key, ttl, serializedValue);
@@ -84,7 +84,7 @@ export abstract class CachingService {
    */
   static async get<T>(key: string): Promise<T | null> {
     try {
-      const client = await this.getClient();
+      const client = await CachingService.getClient();
       const value = await client.get(key);
       
       if (value === null) {
@@ -105,7 +105,7 @@ export abstract class CachingService {
    */
   static async delete(key: string): Promise<boolean> {
     try {
-      const client = await this.getClient();
+      const client = await CachingService.getClient();
       const result = await client.del(key);
       const deleted = result > 0;
       
@@ -124,7 +124,7 @@ export abstract class CachingService {
    */
   static async clear(): Promise<void> {
     try {
-      const client = await this.getClient();
+      const client = await CachingService.getClient();
       await client.flushAll();
       logger.debug("Cache CLEARED");
     } catch (error) {
@@ -141,13 +141,13 @@ export abstract class CachingService {
     keys?: string[];
   }> {
     try {
-      const client = await this.getClient();
+      const client = await CachingService.getClient();
       const info = await client.info();
       const keys = await client.keys('*');
       
       return {
-        connected: this.isConnected,
-        info: this.parseRedisInfo(info),
+        connected: CachingService.isConnected,
+        info: CachingService.parseRedisInfo(info),
         keys: keys.slice(0, 100), // Limit to first 100 keys
       };
     } catch (error) {
@@ -219,20 +219,13 @@ export abstract class CachingService {
     ttlSeconds?: number
   ): Promise<T> {
     // Try to get from cache first
-    const cached = await this.get<T>(key);
+    const cached = await CachingService.get<T>(key);
     if (cached !== null) {
       return cached;
     }
-
-    // Execute function and cache result
-    try {
       const result = await fn();
-      await this.set(key, result, ttlSeconds);
+      await CachingService.set(key, result, ttlSeconds);
       return result;
-    } catch (error) {
-      // Don't cache errors
-      throw error;
-    }
   }
 
   /**
@@ -240,7 +233,7 @@ export abstract class CachingService {
    */
   static async invalidatePattern(pattern: string): Promise<number> {
     try {
-      const client = await this.getClient();
+      const client = await CachingService.getClient();
       const keys = await client.keys(pattern);
       
       if (keys.length > 0) {
@@ -260,17 +253,17 @@ export abstract class CachingService {
    */
   static async invalidateLoanApplication(loanApplicationId: string): Promise<number> {
     const patterns = [
-      this.keys.loanApplication(loanApplicationId),
-      this.keys.loanApplicationSummary(loanApplicationId),
-      this.keys.auditTrail(loanApplicationId, '.*'),
-      this.keys.documentRequests(loanApplicationId, '.*'),
-      this.keys.snapshots(loanApplicationId, '.*'),
-      this.keys.documentStatistics(loanApplicationId),
+      CachingService.keys.loanApplication(loanApplicationId),
+      CachingService.keys.loanApplicationSummary(loanApplicationId),
+      CachingService.keys.auditTrail(loanApplicationId, '.*'),
+      CachingService.keys.documentRequests(loanApplicationId, '.*'),
+      CachingService.keys.snapshots(loanApplicationId, '.*'),
+      CachingService.keys.documentStatistics(loanApplicationId),
     ];
 
     let totalInvalidated = 0;
     for (const pattern of patterns) {
-      totalInvalidated += await this.invalidatePattern(pattern);
+      totalInvalidated += await CachingService.invalidatePattern(pattern);
     }
 
     return totalInvalidated;
@@ -281,13 +274,13 @@ export abstract class CachingService {
    */
   static async invalidateUser(userId: string): Promise<number> {
     const patterns = [
-      this.keys.user(userId),
-      this.keys.personalDocuments(userId),
+      CachingService.keys.user(userId),
+      CachingService.keys.personalDocuments(userId),
     ];
 
     let totalInvalidated = 0;
     for (const pattern of patterns) {
-      totalInvalidated += await this.invalidatePattern(pattern);
+      totalInvalidated += await CachingService.invalidatePattern(pattern);
     }
 
     return totalInvalidated;
@@ -298,13 +291,13 @@ export abstract class CachingService {
    */
   static async invalidateBusiness(businessId: string): Promise<number> {
     const patterns = [
-      this.keys.businessProfile(businessId),
-      this.keys.businessDocuments(businessId),
+      CachingService.keys.businessProfile(businessId),
+      CachingService.keys.businessDocuments(businessId),
     ];
 
     let totalInvalidated = 0;
     for (const pattern of patterns) {
-      totalInvalidated += await this.invalidatePattern(pattern);
+      totalInvalidated += await CachingService.invalidatePattern(pattern);
     }
 
     return totalInvalidated;
@@ -314,10 +307,10 @@ export abstract class CachingService {
    * Gracefully close Redis connection
    */
   static async close(): Promise<void> {
-    if (this.client && this.isConnected) {
+    if (CachingService.client && CachingService.isConnected) {
       try {
-        await this.client.quit();
-        this.isConnected = false;
+        await CachingService.client.quit();
+        CachingService.isConnected = false;
         logger.info('Redis client disconnected gracefully');
       } catch (error) {
         logger.error('Error closing Redis client:', error);

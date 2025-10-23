@@ -1,9 +1,9 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "../../db";
-import { users } from "../../db/schema/users";
-import { businessProfiles } from "../../db/schema/businessProfiles";
-import { businessDocuments, businessDocumentTypeEnum } from "../../db/schema/businessDocuments";
-import { BusinessDocumentsModel } from "./business-documents.model";
+import { users } from "../../db/schema";
+import { businessProfiles } from "../../db/schema";
+import { businessDocuments, businessDocumentTypeEnum } from "../../db/schema";
+import type { BusinessDocumentsModel } from "./business-documents.model";
 import { logger } from "../../utils/logger";
 import { AuditTrailService } from "../audit-trail/audit-trail.service";
 import { DocumentRequestService } from "../document-requests/document-request.service";
@@ -266,7 +266,7 @@ export abstract class BusinessDocuments {
       if (!request) throw httpError(404, "[DOCUMENT_REQUEST_NOT_FOUND] Document request not found");
 
       // Upload the document
-      await this.upsert(clerkId, businessId, documentData);
+      await BusinessDocuments.upsert(clerkId, businessId, documentData);
 
       // Mark the request as fulfilled
       await DocumentRequestService.fulfillRequest({

@@ -1,7 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "../../db";
 import { investorOpportunities } from "../../db/schema";
-import { InvestorOpportunitiesModel } from "./investor-opportunities.model";
+import type { InvestorOpportunitiesModel } from "./investor-opportunities.model";
 import { logger } from "../../utils/logger";
 import { users } from "../../db/schema";
 import { investorOpportunityBookmarks } from "../../db/schema";
@@ -251,7 +251,7 @@ export abstract class InvestorOpportunitiesService {
         );
 
       // rows is array of { investor_opportunities: ..., investor_opportunity_bookmarks: ... }
-      const items = rows.map((r: any) => mapRow(r.investor_opportunities ?? r.investorOpportunities ?? r["investor_opportunities"] ?? r["investorOpportunities"]));
+      const items = rows.map((r: any) => mapRow(r.investor_opportunities ?? r.investorOpportunities ?? r.investor_opportunities ?? r.investorOpportunities));
 
       return { success: true, message: "Bookmarked investor opportunities retrieved successfully", data: items };
     } catch (error: any) {

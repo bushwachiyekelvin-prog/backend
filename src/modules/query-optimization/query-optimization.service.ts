@@ -394,25 +394,25 @@ export abstract class QueryOptimizationService {
           : Promise.resolve([]),
 
         // Audit trail (last 10 entries)
-        this.getOptimizedAuditTrail({
+        QueryOptimizationService.getOptimizedAuditTrail({
           loanApplicationId,
           limit: 10,
         }),
 
         // Snapshots (last 5)
-        this.getOptimizedSnapshots({
+        QueryOptimizationService.getOptimizedSnapshots({
           loanApplicationId,
           limit: 5,
         }),
 
         // Document requests (last 10)
-        this.getOptimizedDocumentRequests({
+        QueryOptimizationService.getOptimizedDocumentRequests({
           loanApplicationId,
           limit: 10,
         }),
 
         // Statistics
-        this.getDocumentStatistics(loanApplicationId),
+        QueryOptimizationService.getDocumentStatistics(loanApplicationId),
       ]);
 
       return {

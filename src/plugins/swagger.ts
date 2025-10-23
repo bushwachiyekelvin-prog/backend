@@ -1,12 +1,12 @@
 /**
  * Swagger/OpenAPI plugin (flattened)
  */
-import { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
 import fastifySwagger from '@fastify/swagger';
 import fastifySwaggerUi from '@fastify/swagger-ui';
 
-export const swaggerPlugin = fastifyPlugin(async function (fastify: FastifyInstance) {
+export const swaggerPlugin = fastifyPlugin(async (fastify: FastifyInstance) => {
   await fastify.register(fastifySwagger, {
     openapi: {
       info: {

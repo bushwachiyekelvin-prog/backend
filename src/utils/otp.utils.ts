@@ -9,10 +9,10 @@ export class OtpUtils {
    * @param length Length of the OTP code (default: 6)
    * @returns A random numeric OTP code
    */
-  static generateOtp(length: number = 6): string {
+  static generateOtp(length = 6): string {
     // Generate a random number with the specified number of digits
-    const min = Math.pow(10, length - 1);
-    const max = Math.pow(10, length) - 1;
+    const min = 10 ** (length - 1);
+    const max = 10 ** length - 1;
     const otp = Math.floor(min + Math.random() * (max - min + 1)).toString();
     
     logger.debug(`Generated OTP: ${otp}`);
@@ -24,7 +24,7 @@ export class OtpUtils {
    * @param minutes Minutes until expiry (default: 10)
    * @returns Date object representing the expiry time
    */
-  static calculateExpiryTime(minutes: number = 10): Date {
+  static calculateExpiryTime(minutes = 10): Date {
     const expiryTime = new Date();
     expiryTime.setMinutes(expiryTime.getMinutes() + minutes);
     return expiryTime;
@@ -53,7 +53,7 @@ export class OtpUtils {
       return false;
     }
 
-    if (this.isOtpExpired(expiryTime)) {
+    if (OtpUtils.isOtpExpired(expiryTime)) {
       logger.debug('OTP has expired');
       return false;
     }

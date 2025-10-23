@@ -1,12 +1,12 @@
 import {
-  loanProducts,
+  type loanProducts,
   loanTermUnitEnum,
   interestTypeEnum,
   interestRatePeriodEnum,
   repaymentFrequencyEnum,
   amortizationMethodEnum,
   productStatusEnum,
-} from "../../db/schema/loanProducts";
+} from "../../db/schema";
 
 export namespace LoanProductsModel {
   // Term unit values derived from DB enum

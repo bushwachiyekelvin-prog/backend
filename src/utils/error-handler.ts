@@ -1,7 +1,7 @@
 /**
  * Global Fastify error handler (flattened)
  */
-import { FastifyError, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify';
 import { logger } from './logger';
 
 export function errorHandler(

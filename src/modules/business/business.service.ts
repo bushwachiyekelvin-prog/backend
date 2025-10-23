@@ -1,8 +1,8 @@
-import { BusinessModel } from "./business.model";
+import type { BusinessModel } from "./business.model";
 import { db } from "../../db";
-import { businessProfiles } from "../../db/schema/businessProfiles";
+import { businessProfiles } from "../../db/schema";
 import { logger } from "../../utils/logger";
-import { users } from "../../db/schema/users";
+import { users } from "../../db/schema";
 import { and, eq, isNull } from "drizzle-orm";
 
 // Lightweight HTTP error helper compatible with our route error handling

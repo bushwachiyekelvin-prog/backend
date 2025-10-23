@@ -1,12 +1,11 @@
-import { UserModel } from "./user.model";
+import type { UserModel } from "./user.model";
 import { db } from "../../db";
-import { users } from "../../db/schema/users";
+import { personalDocuments, users } from "../../db/schema";
 import { logger } from "../../utils/logger";
 import { eq } from "drizzle-orm";
 import { OtpUtils } from "../../utils/otp.utils";
 import { smsService } from "../../services/sms.service";
 import { clerkClient } from "@clerk/fastify";
-import { personalDocuments } from "../../db/schema/personalDocuments";
 
 // Lightweight HTTP error helper compatible with our route error handling
 function httpError(status: number, message: string) {
@@ -185,7 +184,7 @@ export abstract class User {
   static async resendPhoneVerificationOtp(
     clerkId: string,
   ): Promise<UserModel.OtpResponse> {
-    return this.sendPhoneVerificationOtp(clerkId);
+    return User.sendPhoneVerificationOtp(clerkId);
   }
 
   /**
@@ -227,7 +226,6 @@ export abstract class User {
           phoneNumber,
         },
       });
-
 
       return {
         success: true,

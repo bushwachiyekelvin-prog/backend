@@ -49,7 +49,7 @@ export abstract class ServiceOptimizationService {
     cacheKey: string,
     options: OptimizationOptions = {}
   ): Promise<OptimizedResult<T>> {
-    const opts = { ...this.DEFAULT_OPTIONS, ...options };
+    const opts = { ...ServiceOptimizationService.DEFAULT_OPTIONS, ...options };
     const startTime = Date.now();
     let cacheHit = false;
     let serializationTime = 0;
@@ -138,7 +138,7 @@ export abstract class ServiceOptimizationService {
     cacheKeyGenerator: (item: T) => string,
     options: OptimizationOptions = {}
   ): Promise<OptimizedResult<R[]>> {
-    const opts = { ...this.DEFAULT_OPTIONS, ...options };
+    const opts = { ...ServiceOptimizationService.DEFAULT_OPTIONS, ...options };
     const startTime = Date.now();
     const batchSize = opts.batchSize || 100;
     const results: R[] = [];
@@ -225,7 +225,7 @@ export abstract class ServiceOptimizationService {
     processor: (item: T) => Promise<R>,
     options: OptimizationOptions = {}
   ): Promise<OptimizedResult<R[]>> {
-    const opts = { ...this.DEFAULT_OPTIONS, ...options };
+    const opts = { ...ServiceOptimizationService.DEFAULT_OPTIONS, ...options };
     const startTime = Date.now();
 
     try {
@@ -279,7 +279,7 @@ export abstract class ServiceOptimizationService {
   ) {
     return async (...args: T): Promise<OptimizedResult<R>> => {
       const cacheKey = cacheKeyGenerator(...args);
-      return this.optimizeMethod(
+      return ServiceOptimizationService.optimizeMethod(
         methodName,
         () => method(...args),
         cacheKey,

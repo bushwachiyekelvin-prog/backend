@@ -258,7 +258,7 @@ class MockPersonalDocumentsService {
     if (!request) throw new Error("Document request not found");
 
     // Upload the document
-    await this.upsert(clerkId, documentData);
+    await MockPersonalDocumentsService.upsert(clerkId, documentData);
 
     // Mark the request as fulfilled
     await mockDocumentRequestService.fulfillRequest({

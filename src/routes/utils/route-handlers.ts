@@ -1,4 +1,4 @@
-import { FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyReply, FastifyRequest } from "fastify";
 import { getAuth } from "@clerk/fastify";
 import { logger } from "../../utils/logger";
 
@@ -32,7 +32,7 @@ export async function handleRoute(
       data: result,
     });
   } catch (error: any) {
-    logger.error(`Error in route handler:`, error);
+    logger.error("Error in route handler:", error);
     if (error?.status) {
       return reply.code(error.status).send({
         error: error.message,

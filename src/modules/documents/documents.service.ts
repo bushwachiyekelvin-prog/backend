@@ -1,9 +1,9 @@
 import { db } from "../../db";
-import { users } from "../../db/schema/users";
-import { personalDocuments } from "../../db/schema/personalDocuments";
+import { users } from "../../db/schema";
+import { personalDocuments } from "../../db/schema";
 import { and, eq, inArray, isNull } from "drizzle-orm";
-import { DocumentsModel } from "./documents.model";
-import { UserModel } from "../user/user.model";
+import type { DocumentsModel } from "./documents.model";
+import type { UserModel } from "../user/user.model";
 import { logger } from "../../utils/logger";
 import { AuditTrailService } from "../audit-trail/audit-trail.service";
 import { DocumentRequestService } from "../document-requests/document-request.service";
@@ -193,7 +193,7 @@ export abstract class Documents {
       if (!request) throw httpError(404, "[DOCUMENT_REQUEST_NOT_FOUND] Document request not found");
 
       // Upload the document
-      await this.upsert(clerkId, documentData);
+      await Documents.upsert(clerkId, documentData);
 
       // Mark the request as fulfilled
       await DocumentRequestService.fulfillRequest({

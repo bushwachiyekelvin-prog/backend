@@ -1,4 +1,4 @@
-import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { getAuth } from "@clerk/fastify";
 import { OfferLettersService } from "../modules/offer-letters/offer-letters.service";
 import { OfferLettersModel } from "../modules/offer-letters/offer-letters.model";

@@ -1,9 +1,8 @@
 import {
-  offerLetters,
-  offerLetterStatusEnum,
   docuSignStatusEnum,
-} from "../../db/schema/offerLetters";
-import { LoanApplicationsModel } from "../loan-applications/loan-applications.model";
+  type offerLetters,
+  offerLetterStatusEnum,
+} from "../../db/schema";
 
 export namespace OfferLettersModel {
   // Status enums derived from DB
@@ -11,7 +10,8 @@ export namespace OfferLettersModel {
   export type OfferLetterStatus = (typeof offerLetters.$inferSelect)["status"];
 
   export const DocuSignStatusEnum = docuSignStatusEnum.enumValues;
-  export type DocuSignStatus = (typeof offerLetters.$inferSelect)["docuSignStatus"];
+  export type DocuSignStatus =
+    (typeof offerLetters.$inferSelect)["docuSignStatus"];
 
   // ========================================
   // CREATE OFFER LETTER
@@ -190,7 +190,15 @@ export namespace OfferLettersModel {
           purpose: { type: "string" },
           status: { type: "string" },
         },
-        required: ["id", "applicationNumber", "loanAmount", "loanTerm", "currency", "purpose", "status"],
+        required: [
+          "id",
+          "applicationNumber",
+          "loanAmount",
+          "loanTerm",
+          "currency",
+          "purpose",
+          "status",
+        ],
       },
     },
     required: [
@@ -446,5 +454,3 @@ export namespace OfferLettersModel {
     additionalProperties: true,
   } as const;
 }
-
-

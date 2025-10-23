@@ -19,7 +19,7 @@ export namespace UserModel {
     code: string;
   }
 
-  export interface OtpRequestBody {}
+  export type OtpRequestBody = {}
 
   export interface OtpVerificationBody {
     otp: string;

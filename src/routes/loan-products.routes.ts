@@ -1,4 +1,4 @@
-import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { getAuth } from "@clerk/fastify";
 import { LoanProductsService } from "../modules/loan-products/loan-products.service";
 import { LoanProductsModel } from "../modules/loan-products/loan-products.model";

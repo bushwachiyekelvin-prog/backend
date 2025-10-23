@@ -136,7 +136,7 @@ export abstract class StatusService {
       logger.info(`[STATUS_UPDATE_CURRENT] RequestID: ${requestId} | Current Status: ${currentApplication.status} -> New Status: ${newStatus}`);
 
       // Validate status transition
-      const validation = this.validateStatusTransition(
+      const validation = StatusService.validateStatusTransition(
         currentApplication.status as LoanApplicationStatus,
         newStatus
       );
@@ -321,7 +321,7 @@ export abstract class StatusService {
                     customMessage: "Your loan application has been approved! Please review and sign the attached offer letter.",
                   });
 
-                  logger.info(`[OFFER_LETTER_SEND_COMPLETE] Background | Offer letter sent successfully via DocuSign`);
+                  logger.info("[OFFER_LETTER_SEND_COMPLETE] Background | Offer letter sent successfully via DocuSign");
                 } catch (error) {
                   logger.error(`[OFFER_LETTER_SEND_ERROR] Background | Failed to send offer letter ${createdOffer.data.id}:`, error);
                   // Could add retry logic or notification here
@@ -373,7 +373,7 @@ export abstract class StatusService {
         // Don't fail the status update if notification fails
       }
 
-      logger.info(`[STATUS_UPDATE_SUCCESS] RequestID: ${requestId} | Status update completed successfully | Duration: ${Date.now() - parseInt(requestId.split('-')[0])}ms`);
+      logger.info(`[STATUS_UPDATE_SUCCESS] RequestID: ${requestId} | Status update completed successfully | Duration: ${Date.now() - Number.parseInt(requestId.split('-')[0])}ms`);
 
       return {
         success: true,

@@ -2,7 +2,7 @@
  * Database plugin for Fastify (flattened)
  * Exposes Drizzle `db` on fastify instance and gracefully closes connection on shutdown
  */
-import { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
 import { db, connection } from "../db";
 
@@ -12,7 +12,7 @@ declare module 'fastify' {
   }
 }
 
-export const databasePlugin = fastifyPlugin(async function (fastify: FastifyInstance) {
+export const databasePlugin = fastifyPlugin(async (fastify: FastifyInstance) => {
   // Decorate Fastify instance with db
   fastify.decorate('db', db);
 
