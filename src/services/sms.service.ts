@@ -40,6 +40,7 @@ export class SmsService {
    * Send an OTP message to a phone number
    * @param phoneNumber The recipient's phone number (should include country code)
    * @param otp The OTP code to send
+   * @param firstName The recipient's first name
    * @returns Promise with the result of the SMS sending operation
    */
   public async sendOtp(phoneNumber: string, otp: string, firstName: string): Promise<any> {
