@@ -4,6 +4,7 @@ import { logger } from "../utils/logger";
 import { BusinessDocuments } from "../modules/business-documents/business-documents.service";
 import { BusinessDocumentsModel } from "../modules/business-documents/business-documents.model";
 import { UserModel } from "../modules/user/user.model";
+import { CachingService } from "../modules/caching/caching.service";
 
 export async function businessDocumentsRoutes(fastify: FastifyInstance) {
   // POST /business/:id/documents — upsert one or many business documents
@@ -61,6 +62,15 @@ export async function businessDocumentsRoutes(fastify: FastifyInstance) {
           id,
           normalizedBody as BusinessDocumentsModel.AddDocumentsBody,
         );
+        
+        // Invalidate business documents cache for this business
+        try {
+          await CachingService.invalidatePattern(`business_documents:${id}:*`);
+          logger.debug(`Cache invalidated for business documents of business ${id}`);
+        } catch (cacheError) {
+          logger.error(`Error invalidating cache for business documents of business ${id}:`, cacheError);
+        }
+        
         return reply.send(result);
       } catch (error: any) {
         logger.error("Error upserting business documents:", error);

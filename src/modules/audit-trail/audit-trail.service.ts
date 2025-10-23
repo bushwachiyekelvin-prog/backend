@@ -1,6 +1,8 @@
 import { db } from "../../db";
 import { applicationAuditTrail, type AuditAction } from "../../db/schema";
 import { eq, desc, and } from "drizzle-orm";
+import { CachingService } from "../caching/caching.service";
+import { logger } from "../../utils/logger";
 
 function httpError(status: number, message: string) {
   const error = new Error(message) as any;
@@ -76,6 +78,15 @@ export abstract class AuditTrailService {
 
       if (!result) {
         throw httpError(500, "[AUDIT_LOG_FAILED] Failed to create audit trail entry");
+      }
+
+      // Invalidate audit trail cache for this loan application
+      try {
+        await CachingService.invalidatePattern(`audit_trail:${params.loanApplicationId}:*`);
+        logger.debug(`Cache invalidated for audit trail of loan application ${params.loanApplicationId}`);
+      } catch (cacheError) {
+        logger.error(`Error invalidating cache for audit trail of loan application ${params.loanApplicationId}:`, cacheError);
+        // Don't throw - cache invalidation failure shouldn't prevent audit logging
       }
 
       // Return formatted result

@@ -14,6 +14,10 @@ import { SnapshotResponseSchema, SnapshotsListResponseSchema, SnapshotErrorRespo
 import { DocumentRequestsListResponseSchema, DocumentRequestStatisticsResponseSchema, DocumentRequestQuerySchema, DocumentRequestErrorResponses } from "./schemas/document-requests.schemas";
 import { handleRoute, extractParams, extractQuery } from "./utils/route-handlers";
 import { ResponseCachingService } from "../modules/response-caching/response-caching.service";
+import { CachingService } from "../modules/caching/caching.service";
+import { loanApplicationStatusEnum } from "../db/schema/loanApplications";
+
+type LoanApplicationStatusType = (typeof loanApplicationStatusEnum.enumValues)[number];
 
 export async function loanApplicationsRoutes(fastify: FastifyInstance) {
   // CREATE loan application
@@ -42,6 +46,15 @@ export async function loanApplicationsRoutes(fastify: FastifyInstance) {
           userId,
           request.body as LoanApplicationsModel.CreateLoanApplicationBody,
         );
+        
+        // Invalidate loan applications list cache for this user
+        try {
+          await CachingService.invalidatePattern(`loan_application:*`);
+          logger.debug("Cache invalidated after creating loan application");
+        } catch (cacheError) {
+          logger.error("Error invalidating cache after creating loan application:", cacheError);
+        }
+        
         return reply.send(result);
       } catch (error: any) {
         logger.error("Error creating loan application:", error);
@@ -182,6 +195,15 @@ export async function loanApplicationsRoutes(fastify: FastifyInstance) {
           id,
           request.body as LoanApplicationsModel.UpdateLoanApplicationBody,
         );
+        
+        // Invalidate cache for this loan application
+        try {
+          await CachingService.invalidateLoanApplication(id);
+          logger.debug(`Cache invalidated after updating loan application ${id}`);
+        } catch (cacheError) {
+          logger.error(`Error invalidating cache after updating loan application ${id}:`, cacheError);
+        }
+        
         return reply.send(result);
       } catch (error: any) {
         logger.error("Error updating loan application:", error);
@@ -262,6 +284,15 @@ export async function loanApplicationsRoutes(fastify: FastifyInstance) {
         }
         const { id } = (request.params as any) || {};
         const result = await LoanApplicationsService.remove(userId, id);
+        
+        // Invalidate cache for this loan application
+        try {
+          await CachingService.invalidateLoanApplication(id);
+          logger.debug(`Cache invalidated after deleting loan application ${id}`);
+        } catch (cacheError) {
+          logger.error(`Error invalidating cache after deleting loan application ${id}:`, cacheError);
+        }
+        
         return reply.send(result);
       } catch (error: any) {
         logger.error("Error deleting loan application:", error);
@@ -309,7 +340,7 @@ export async function loanApplicationsRoutes(fastify: FastifyInstance) {
         
         const statusResult = await StatusService.updateStatus({
           loanApplicationId: id,
-          newStatus: body.status,
+          newStatus: body.status as LoanApplicationStatusType,
           userId,
           reason: `Status updated to ${body.status}`,
           rejectionReason: body.rejectionReason,

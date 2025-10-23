@@ -24,7 +24,8 @@ export type LoanApplicationStatus =
   | "offer_letter_declined"
   | "rejected"
   | "withdrawn"
-  | "disbursed";
+  | "disbursed"
+  | "expired";
 
 // Status transition rules
 const STATUS_TRANSITIONS: Record<LoanApplicationStatus, LoanApplicationStatus[]> = {
@@ -38,6 +39,7 @@ const STATUS_TRANSITIONS: Record<LoanApplicationStatus, LoanApplicationStatus[]>
   rejected: ["submitted", "withdrawn"], // Allow resubmission
   withdrawn: [], // Terminal state
   disbursed: [], // Terminal state
+  expired: [], // Terminal state
 };
 
 // Interfaces for service parameters and responses
@@ -316,9 +318,9 @@ export abstract class StatusService {
                   logger.info(`[OFFER_LETTER_SEND_START] Background | Sending offer letter ${createdOffer.data.id} via DocuSign`);
                   
                   await OfferLettersService.sendOfferLetter(userId, createdOffer.data.id, {
+                    docuSignTemplateId: createdOffer.data.docuSignTemplateId || "",
                     recipientEmail: loanApp.user.email,
                     recipientName: `${loanApp.user.firstName} ${loanApp.user.lastName}`,
-                    customMessage: "Your loan application has been approved! Please review and sign the attached offer letter.",
                   });
 
                   logger.info("[OFFER_LETTER_SEND_COMPLETE] Background | Offer letter sent successfully via DocuSign");

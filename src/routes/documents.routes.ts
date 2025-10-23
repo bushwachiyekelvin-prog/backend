@@ -4,6 +4,7 @@ import { logger } from "../utils/logger";
 import { Documents } from "../modules/documents/documents.service";
 import { DocumentsModel } from "../modules/documents/documents.model";
 import { UserModel } from "../modules/user/user.model";
+import { CachingService } from "../modules/caching/caching.service";
 
 export async function documentsRoutes(fastify: FastifyInstance) {
   // POST /documents — upsert one or many personal documents
@@ -30,6 +31,15 @@ export async function documentsRoutes(fastify: FastifyInstance) {
         }
 
         const result = await Documents.upsert(userId, request.body as DocumentsModel.AddDocumentsBody);
+        
+        // Invalidate personal documents cache for this user
+        try {
+          await CachingService.invalidatePattern(`personal_documents:${userId}:*`);
+          logger.debug(`Cache invalidated for personal documents of user ${userId}`);
+        } catch (cacheError) {
+          logger.error(`Error invalidating cache for personal documents of user ${userId}:`, cacheError);
+        }
+        
         return reply.send(result);
       } catch (error: any) {
         logger.error("Error upserting personal documents:", error);

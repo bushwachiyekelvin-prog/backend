@@ -343,7 +343,7 @@ class DocuSignService {
     try {
       const accessToken = await this.getAccessToken();
       
-      const response = await fetch(`${DOCUSIGN_BASE_URL}/v2.1/accounts/${DOCUSIGN_ACCOUNT_ID}/envelopes/${envelopeId}`, {
+      const response = await fetch(`${DOCUSIGN_API_BASE_URL}/v2.1/accounts/${DOCUSIGN_ACCOUNT_ID}/envelopes/${envelopeId}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -369,7 +369,7 @@ class DocuSignService {
     try {
       const accessToken = await this.getAccessToken();
       
-      const response = await fetch(`${DOCUSIGN_BASE_URL}/v2.1/accounts/${DOCUSIGN_ACCOUNT_ID}/envelopes/${envelopeId}/recipients`, {
+      const response = await fetch(`${DOCUSIGN_API_BASE_URL}/v2.1/accounts/${DOCUSIGN_ACCOUNT_ID}/envelopes/${envelopeId}/recipients`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -395,7 +395,7 @@ class DocuSignService {
     try {
       const accessToken = await this.getAccessToken();
       
-      const response = await fetch(`${DOCUSIGN_BASE_URL}/v2.1/accounts/${DOCUSIGN_ACCOUNT_ID}/envelopes/${envelopeId}`, {
+      const response = await fetch(`${DOCUSIGN_API_BASE_URL}/v2.1/accounts/${DOCUSIGN_ACCOUNT_ID}/envelopes/${envelopeId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${accessToken}`,

@@ -1,17 +1,16 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { docuSignService, type DocuSignWebhookEvent } from "../services/docusign.service";
 import { db } from "../db";
-import { offerLetters } from "../db/schema";
-import { loanApplications } from "../db/schema";
 import { users } from "../db/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { logger } from "../utils/logger";
-import { AuditTrailService } from "../modules/audit-trail/audit-trail.service";
 import { verifyClerkWebhook } from "../utils/webhook.utils";
 import { extractEmailUpdateFromWebhook, extractUserDataFromWebhook } from "../modules/user/user.utils";
 import { sendWelcomeEmail } from "../utils/email.utils";
 import { User } from "../modules/user/user.service";
 import { emailService } from "../services/email.service";
+import { UserDeletionService } from "../services/user-deletion.service";
+import { DocuSignWebhookService } from "../services/docusign-webhook.service";
 
 export async function webhookRoutes(fastify: FastifyInstance) {
   // DocuSign webhook endpoint
@@ -54,7 +53,7 @@ export async function webhookRoutes(fastify: FastifyInstance) {
       await docuSignService.processWebhookEvent(event as DocuSignWebhookEvent);
 
       // Update offer letter and loan application status based on DocuSign event
-      await handleDocuSignStatusUpdate(event as DocuSignWebhookEvent);
+      await DocuSignWebhookService.handleStatusUpdate(event as DocuSignWebhookEvent);
 
       reply.code(200).send({ success: true });
     } catch (error) {
@@ -178,6 +177,24 @@ export async function webhookRoutes(fastify: FastifyInstance) {
           }
         }
 
+        if (type === "user.deleted") {
+          try {
+            const clerkId: string | undefined = event?.data?.id;
+
+            if (!clerkId) {
+              logger.warn("user.deleted event missing clerk user ID");
+              return reply.code(200).send({ received: true, ignored: true });
+            }
+
+            logger.info("Processing user.deleted event", { clerkId });
+            await UserDeletionService.deleteUserAndAllRelatedData(clerkId);
+            return reply.send({ received: true, deleted: true });
+          } catch (e) {
+            logger.error("Unexpected error handling user.deleted", e);
+            return reply.code(500).send({ error: "USER_DELETION_FAILED" });
+          }
+        }
+
         return reply
           .code(200)
           .send({ received: true, ignored: true, type });
@@ -195,202 +212,4 @@ export async function webhookRoutes(fastify: FastifyInstance) {
   fastify.get("/health", async (request, reply) => {
     reply.code(200).send({ status: "healthy", timestamp: new Date().toISOString() });
   });
-}
-
-async function handleDocuSignStatusUpdate(event: any) {
-  // Extract envelope information with fallback
-  let envelopeId: string;
-  let status: string;
-  
-  if (event.data?.envelopeSummary) {
-    envelopeId = event.data.envelopeSummary.envelopeId;
-    status = event.data.envelopeSummary.status;
-  } else if (event.data?.envelopeId) {
-    envelopeId = event.data.envelopeId;
-    // Map webhook event to status
-    switch (event.event) {
-      case 'envelope-sent':
-        status = 'sent';
-        break;
-      case 'envelope-delivered':
-        status = 'delivered';
-        break;
-      case 'envelope-completed':
-        status = 'completed';
-        break;
-      case 'envelope-declined':
-        status = 'declined';
-        break;
-      case 'envelope-voided':
-        status = 'voided';
-        break;
-      default:
-        status = event.data.status || 'unknown';
-    }
-  } else {
-    logger.error("Cannot extract envelope information from webhook event:", event);
-    return;
-  }
-  
-  try {
-    // Find the offer letter associated with this envelope
-    const offerLetter = await db.query.offerLetters.findFirst({
-      where: and(
-        eq(offerLetters.docuSignEnvelopeId, envelopeId),
-        isNull(offerLetters.deletedAt)
-      ),
-      with: {
-        loanApplication: true,
-      },
-    });
-
-    if (!offerLetter) {
-      logger.warn(`No offer letter found for DocuSign envelope ${envelopeId}`);
-      return;
-    }
-
-    // Update offer letter status based on DocuSign status
-    let newOfferLetterStatus = offerLetter.status;
-    let newDocuSignStatus = offerLetter.docuSignStatus;
-    const updateData: any = {
-      updatedAt: new Date(),
-    };
-
-    switch (status) {
-      case "sent":
-        newDocuSignStatus = "sent";
-        break;
-      case "delivered":
-        newDocuSignStatus = "delivered";
-        break;
-      case "completed":
-        newOfferLetterStatus = "signed";
-        newDocuSignStatus = "completed";
-        updateData.signedAt = new Date();
-        break;
-      case "declined":
-        newOfferLetterStatus = "declined";
-        newDocuSignStatus = "declined";
-        updateData.declinedAt = new Date();
-        break;
-      case "voided":
-        newOfferLetterStatus = "voided";
-        newDocuSignStatus = "voided";
-        updateData.voidedAt = new Date();
-        break;
-    }
-
-    // Update offer letter
-    logger.info(`Updating offer letter ${offerLetter.id}: status ${offerLetter.status} -> ${newOfferLetterStatus}, docuSignStatus ${offerLetter.docuSignStatus} -> ${newDocuSignStatus}`);
-    
-    await db
-      .update(offerLetters)
-      .set({
-        ...updateData,
-        status: newOfferLetterStatus,
-        docuSignStatus: newDocuSignStatus,
-      })
-      .where(eq(offerLetters.id, offerLetter.id));
-
-    // Log audit trail entry for all status changes
-    try {
-      logger.info(`Creating audit trail for offer letter ${offerLetter.id} with status ${status}, createdBy: ${offerLetter.createdBy}`);
-      
-      // Get the user who created the offer letter for audit trail
-      const user = offerLetter.createdBy ? await db.query.users.findFirst({
-        where: eq(users.id, offerLetter.createdBy),
-      }) : null;
-
-      if (user) {
-        logger.info(`Found user ${user.id} for audit trail, creating entry`);
-        
-        // Map status to audit action
-        let auditAction: string;
-        let reason: string;
-        
-        switch (status) {
-          case "sent":
-            auditAction = "offer_letter_sent";
-            reason = "Offer letter sent via DocuSign";
-            break;
-          case "delivered":
-            auditAction = "offer_letter_delivered";
-            reason = "Offer letter delivered to recipient";
-            break;
-          case "completed":
-            auditAction = "offer_letter_signed";
-            reason = "Offer letter signed via DocuSign";
-            break;
-          case "declined":
-            auditAction = "offer_letter_declined";
-            reason = "Offer letter declined via DocuSign";
-            break;
-          default:
-            auditAction = "offer_letter_updated";
-            reason = `Offer letter status updated to ${status}`;
-        }
-        
-        await AuditTrailService.logAction({
-          loanApplicationId: offerLetter.loanApplicationId,
-          userId: user.id,
-          action: auditAction,
-          reason,
-          details: `DocuSign envelope ${envelopeId} was ${status}. Offer letter ${offerLetter.offerNumber} status updated.`,
-          metadata: {
-            envelopeId,
-            offerLetterId: offerLetter.id,
-            offerNumber: offerLetter.offerNumber,
-            docuSignStatus: status,
-            webhookEvent: event.event,
-          },
-        });
-        
-        logger.info(`Successfully created audit trail entry for ${auditAction}`);
-      } else {
-        logger.warn(`No user found for offer letter ${offerLetter.id}, createdBy: ${offerLetter.createdBy}`);
-      }
-    } catch (auditError) {
-      logger.error("Failed to log audit trail for DocuSign status update:", auditError);
-      // Don't fail the entire operation if audit logging fails
-    }
-
-    // Update loan application status if offer letter was signed or declined
-    if (status === "completed" || status === "declined") {
-      const newLoanStatus = status === "completed" ? "offer_letter_signed" : "offer_letter_declined";
-
-      // Update loan application status directly (without triggering automation)
-      if (newLoanStatus) {
-        try {
-          logger.info(`Updating loan application ${offerLetter.loanApplicationId} status to ${newLoanStatus} via webhook`);
-          
-          // Get the user's Clerk ID for the foreign key constraint
-          const creator = await db.query.users.findFirst({
-            where: eq(users.id, offerLetter.createdBy),
-            columns: { clerkId: true }
-          });
-          
-          await db
-            .update(loanApplications)
-            .set({
-              status: newLoanStatus,
-              statusReason: `Status updated via DocuSign webhook: ${status}`,
-              lastUpdatedBy: creator?.clerkId || "system",
-              lastUpdatedAt: new Date(),
-              updatedAt: new Date(),
-            })
-            .where(eq(loanApplications.id, offerLetter.loanApplicationId));
-          
-          logger.info(`Successfully updated loan application ${offerLetter.loanApplicationId} status to ${newLoanStatus} via webhook`);
-        } catch (statusError) {
-          logger.error("Failed to update loan application status via webhook:", statusError);
-          // Don't fail the entire operation if status update fails
-        }
-      }
-    }
-
-    logger.info(`Updated offer letter ${offerLetter.id} status to ${newOfferLetterStatus} based on DocuSign event ${status}`);
-  } catch (error) {
-    logger.error(`Error handling DocuSign status update for envelope ${envelopeId}:`, error);
-    throw error;
-  }
 }
