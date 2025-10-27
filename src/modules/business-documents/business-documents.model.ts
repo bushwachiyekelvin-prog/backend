@@ -15,6 +15,7 @@ export namespace BusinessDocumentsModel {
     "pitch_deck",
     "annual_bank_statement",
     "audited_financial_statements",
+    "income_statements",
   ];
 
   export interface BusinessDocumentItem {

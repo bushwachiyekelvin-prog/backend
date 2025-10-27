@@ -23,6 +23,7 @@ export const businessDocumentTypeEnum = pgEnum("business_document_type", [
   // Banking/financial docs (year-based allowed via docYear)
   "annual_bank_statement",
   "audited_financial_statements",
+  "income_statements",
 ]);
 
 // Type alias for use in application code
