@@ -24,6 +24,7 @@ export const businessDocumentTypeEnum = pgEnum("business_document_type", [
   "annual_bank_statement",
   "audited_financial_statements",
   "income_statements",
+  "personal_bank_statement"
 ]);
 
 // Type alias for use in application code

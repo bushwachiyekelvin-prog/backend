@@ -16,6 +16,7 @@ export namespace BusinessDocumentsModel {
     "annual_bank_statement",
     "audited_financial_statements",
     "income_statements",
+    "personal_bank_statement"
   ];
 
   export interface BusinessDocumentItem {
