@@ -28,6 +28,7 @@ import { offerLettersRoutes } from './routes/offer-letters.routes';
 import { investorOpportunitiesRoutes } from './routes/investor-opportunities.routes';
 import { webhookRoutes } from './routes/webhooks.routes';
 import { documentRequestsRoutes } from './routes/document-requests.routes';
+import { userGroupsRoutes } from './routes/user-groups.routes';
 import { ResponseCachingService } from './modules/response-caching/response-caching.service';
 
 config();
@@ -73,6 +74,7 @@ export async function registerPlugins(fastify: FastifyInstance): Promise<void> {
   await fastify.register(offerLettersRoutes, { prefix: '/offer-letters' });
   await fastify.register(investorOpportunitiesRoutes, { prefix: '/investor-opportunities' });
   await fastify.register(documentRequestsRoutes, { prefix: '/document-requests' });
+  await fastify.register(userGroupsRoutes, { prefix: '/user-groups' });
   await fastify.register(webhookRoutes, { prefix: '/webhooks' });
 
   fastify.get('/', async () => {

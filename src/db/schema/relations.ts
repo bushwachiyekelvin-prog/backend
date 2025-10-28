@@ -12,6 +12,8 @@ import { documentRequests } from "./documentRequests";
 import { offerLetters } from "./offerLetters";
 import { investorOpportunities } from "./investorOpportunities";
 import { investorOpportunityBookmarks } from "./investorOpportunityBookmarks";
+import { userGroups } from "./userGroups";
+import { userGroupMembers } from "./userGroupMembers";
 
 export const usersRelations = relations(users, ({ many }) => ({
   personalDocuments: many(personalDocuments),
@@ -22,6 +24,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   requestedDocuments: many(documentRequests, { relationName: "requestedBy" }),
   documentRequests: many(documentRequests, { relationName: "requestedFrom" }),
   investorOpportunityBookmarks: many(investorOpportunityBookmarks),
+  groupMemberships: many(userGroupMembers),
 }));
 
 export const personalDocumentsRelations = relations(personalDocuments, ({ one }) => ({
@@ -53,6 +56,21 @@ export const investorOpportunitiesRelations = relations(
     bookmarks: many(investorOpportunityBookmarks),
   }),
 );
+
+export const userGroupsRelations = relations(userGroups, ({ many }) => ({
+  memberships: many(userGroupMembers),
+}));
+
+export const userGroupMembersRelations = relations(userGroupMembers, ({ one }) => ({
+  user: one(users, {
+    fields: [userGroupMembers.userId],
+    references: [users.id],
+  }),
+  group: one(userGroups, {
+    fields: [userGroupMembers.groupId],
+    references: [userGroups.id],
+  }),
+}));
 
 export const investorOpportunityBookmarksRelations = relations(
   investorOpportunityBookmarks,
