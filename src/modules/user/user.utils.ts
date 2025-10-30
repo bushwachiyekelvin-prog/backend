@@ -64,11 +64,13 @@ export const extractUserDataFromWebhook = (
           ?.email_address ?? email_addresses[0]?.email_address)
       : undefined;
 
-    // Extract metadata with proper type safety
-    const publicMetadata = data.unsafe_metadata || {};
-    const gender = publicMetadata.gender;
-    const phoneNumber = publicMetadata.phoneNumber;
-    const dobRaw = publicMetadata.dob;
+    // Extract metadata
+    const publicMetadata = (data as any).public_metadata || {};
+    const unsafeMetadata = (data as any).unsafe_metadata || {};
+    const isInternal = publicMetadata?.internal === true;
+    const gender = unsafeMetadata.gender;
+    const phoneNumber = unsafeMetadata.phoneNumber;
+    const dobRaw = unsafeMetadata.dob;
 
     let dob: Date | undefined;
     if (typeof dobRaw === "string") {
@@ -82,9 +84,12 @@ export const extractUserDataFromWebhook = (
     if (!primaryEmail) missing.push("email");
     if (!first_name) missing.push("firstName");
     if (!last_name) missing.push("lastName");
-    if (!gender) missing.push("gender");
-    if (!phoneNumber) missing.push("phoneNumber");
-    if (!dob) missing.push("dob");
+    // For internal invited users, relax requirements: gender, phone, dob are optional on creation
+    if (!isInternal) {
+      if (!gender) missing.push("gender");
+      if (!phoneNumber) missing.push("phoneNumber");
+      if (!dob) missing.push("dob");
+    }
 
     if (missing.length > 0) {
       return {

@@ -87,8 +87,20 @@ export async function webhookRoutes(fastify: FastifyInstance) {
         const { type } = event!;
 
         if (type === "user.created") {
+          try {
+            logger.info("[WEBHOOK user.created] received", {
+              clerkId: (event as any)?.data?.id,
+              primaryEmailId: (event as any)?.data?.primary_email_address_id,
+              publicMeta: (event as any)?.data?.public_metadata,
+              unsafeMetaKeys: Object.keys((event as any)?.data?.unsafe_metadata || {}),
+            });
+          } catch {}
           const userDataResult = extractUserDataFromWebhook(event!);
           if (!userDataResult.success) {
+            logger.warn("[WEBHOOK user.created] extraction failed", {
+              error: userDataResult.error?.message,
+              missing: userDataResult.missingFields,
+            });
             return reply.code(400).send({
               error:
                 userDataResult.error?.message ||
@@ -97,20 +109,43 @@ export async function webhookRoutes(fastify: FastifyInstance) {
             });
           }
 
-          const userResult = await User.signUp(userDataResult.userData!);
+          let userResult;
+          try {
+            userResult = await User.signUp(userDataResult.userData!);
+            logger.info("[WEBHOOK user.created] local user created", {
+              email: userDataResult.userData!.email,
+              clerkId: userDataResult.userData!.clerkId,
+            });
+          } catch (e: any) {
+            logger.error("[WEBHOOK user.created] local user creation failed", {
+              email: userDataResult.userData!.email,
+              error: e?.message,
+            });
+            throw e;
+          }
 
           // Determine internal invite + role from public metadata
           const publicMeta: any = (event as any)?.data?.public_metadata || (event as any)?.data?.publicMeta;
           const isInternal: boolean = publicMeta?.internal === true;
           const invitedRole: string | undefined = publicMeta?.role;
 
+          logger.info("[WEBHOOK user.created]", {
+            email: userDataResult.userData!.email,
+            clerkId: userDataResult.userData!.clerkId,
+            isInternal,
+            invitedRole,
+          });
+
           // If role present, mirror into local users table
           try {
             const u = await User.findByEmail(userDataResult.userData!.email);
             if (u && invitedRole) {
               await db.update(users).set({ role: invitedRole, updatedAt: new Date() }).where(eq(users.id, u.id));
+              logger.info("[WEBHOOK user.created] role mirrored to local user", { email: u.email, role: invitedRole });
             }
-          } catch {}
+          } catch (e: any) {
+            logger.error("[WEBHOOK user.created] role mirror failed", { error: e?.message });
+          }
           // Send welcome email async (non-blocking)
           sendWelcomeEmail(
             userDataResult.userData!.firstName,
@@ -186,6 +221,7 @@ export async function webhookRoutes(fastify: FastifyInstance) {
             // Attempt to extract the invitation CTA URL Clerk includes (name may vary by template)
             const inviteUrl: string | undefined = payload?.data?.action_url || payload?.data?.url || payload?.data?.links?.[0]?.url;
             if (toEmail && inviteUrl) {
+              logger.info("[WEBHOOK email.created] invitation email detected", { toEmail, inviteUrlPresent: !!inviteUrl });
               // Find latest pending internal invitation to get the intended role
               const record = await db.query.internalInvitations.findFirst({
                 where: eq(internalInvitations.email, toEmail),
@@ -193,6 +229,7 @@ export async function webhookRoutes(fastify: FastifyInstance) {
               });
 
               const role: 'super-admin' | 'admin' | 'member' = (record?.role as any) || 'member';
+              logger.info("[WEBHOOK email.created] sending custom invite", { toEmail, role });
               const sendInvite = await emailService.sendInternalInviteEmail({ email: toEmail, inviteUrl, role });
               if (!sendInvite.success) {
                 logger.error("Failed to send custom internal invite email", { toEmail, error: sendInvite.error });

@@ -1,4 +1,5 @@
 import { clerkClient } from "@clerk/fastify";
+import { logger } from "../../utils/logger";
 import { db } from "../../db";
 import { internalInvitations, internalInvitationStatusEnum, users } from "../../db/schema";
 import { eq } from "drizzle-orm";
@@ -30,14 +31,17 @@ export class InternalUsersService {
 
     let invitation: any;
     try {
+      logger.info("[INVITE] Creating Clerk invitation", { email: body.email, role: body.role, redirectUrl });
       invitation = await clerkClient.invitations.createInvitation({
         emailAddress: body.email,
         publicMetadata: { role: body.role, internal: true },
         redirectUrl,
       } as any);
+      logger.info("[INVITE] Clerk invitation created", { email: body.email, invitationId: invitation?.id });
     } catch (e: any) {
       const err: any = new Error(e?.errors?.[0]?.message || e?.message || 'Failed to create invitation');
       err.status = e?.status || 400;
+      logger.error("[INVITE] Clerk invitation failed", { email: body.email, role: body.role, error: err.message });
       throw err;
     }
 
@@ -52,6 +56,7 @@ export class InternalUsersService {
       createdAt: now,
       updatedAt: now,
     });
+    logger.info("[INVITE] Stored internal invitation record", { email: body.email, invitationId: invitation?.id });
 
     return { success: true, invitationId: (invitation as any).id };
   }
@@ -118,6 +123,7 @@ export class InternalUsersService {
   }
 
   static async resendInvitation(params: { localInvitationId: string }): Promise<InternalUsersModel.BasicSuccessResponse> {
+    logger.info("[INVITE] Resend request received", { invitationId: params.localInvitationId });
     const inv = await db.query.internalInvitations.findFirst({ where: eq(internalInvitations.id, params.localInvitationId) });
     if (!inv) {
       const err: any = new Error('Invitation not found');
@@ -126,16 +132,18 @@ export class InternalUsersService {
     }
     // Create a fresh Clerk invitation; webhook will handle the email sending
     const redirectUrl = `${process.env.APP_URL?.replace(/\/$/, '') || ''}/internal/accept-invite`;
-    await clerkClient.invitations.createInvitation({
+    const newInvite = await clerkClient.invitations.createInvitation({
       emailAddress: inv.email,
       publicMetadata: { role: inv.role, internal: true },
       redirectUrl,
     } as any);
     await db.update(internalInvitations).set({ lastSentAt: new Date(), updatedAt: new Date() }).where(eq(internalInvitations.id, inv.id));
+    logger.info("[INVITE] Resent Clerk invitation", { email: inv.email, oldInvitationId: inv.clerkInvitationId, newInvitationId: (newInvite as any)?.id });
     return { success: true };
   }
 
   static async revokeInvitation(params: { localInvitationId: string }): Promise<InternalUsersModel.BasicSuccessResponse> {
+    logger.info("[INVITE] Revoke request received", { invitationId: params.localInvitationId });
     const inv = await db.query.internalInvitations.findFirst({ where: eq(internalInvitations.id, params.localInvitationId) });
     if (!inv || !inv.clerkInvitationId) {
       const err: any = new Error('Invitation not found');
@@ -145,6 +153,7 @@ export class InternalUsersService {
     // Revoke via Clerk
     await clerkClient.invitations.revokeInvitation(inv.clerkInvitationId as any);
     await db.update(internalInvitations).set({ status: 'revoked' as any, updatedAt: new Date() }).where(eq(internalInvitations.id, inv.id));
+    logger.info("[INVITE] Revoked Clerk invitation", { email: inv.email, invitationId: inv.clerkInvitationId });
     return { success: true };
   }
 
