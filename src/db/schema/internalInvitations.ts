@@ -17,7 +17,7 @@ export const internalInvitations = pgTable(
     role: varchar("role", { length: 50 }).notNull(), // super-admin | admin | member
     clerkInvitationId: varchar("clerk_invitation_id", { length: 64 }),
     status: internalInvitationStatusEnum("status").notNull(),
-    invitedByUserId: varchar("invited_by_user_id", { length: 24 }).notNull(),
+    invitedByUserId: varchar("invited_by_user_id", { length: 64 }).notNull(),
     lastSentAt: timestamp("last_sent_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

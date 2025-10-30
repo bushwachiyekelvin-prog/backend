@@ -20,13 +20,26 @@ export class InternalUsersService {
 
     await InternalUsersService.requireSuperAdminOrThrow(invitedByClerkUserId);
 
-    const redirectUrl = `${process.env.APP_URL?.replace(/\/$/, '') || ''}/internal/accept-invite`;
+    const appUrl = process.env.APP_URL?.replace(/\/$/, '');
+    if (!appUrl) {
+      const err: any = new Error("APP_URL is not configured");
+      err.status = 500;
+      throw err;
+    }
+    const redirectUrl = `${appUrl}/internal/accept-invite`;
 
-    const invitation = await clerkClient.invitations.createInvitation({
-      emailAddress: body.email,
-      publicMetadata: { role: body.role, internal: true },
-      redirectUrl,
-    } as any);
+    let invitation: any;
+    try {
+      invitation = await clerkClient.invitations.createInvitation({
+        emailAddress: body.email,
+        publicMetadata: { role: body.role, internal: true },
+        redirectUrl,
+      } as any);
+    } catch (e: any) {
+      const err: any = new Error(e?.errors?.[0]?.message || e?.message || 'Failed to create invitation');
+      err.status = e?.status || 400;
+      throw err;
+    }
 
     const now = new Date();
     await db.insert(internalInvitations).values({

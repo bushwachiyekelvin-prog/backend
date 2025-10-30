@@ -99,8 +99,18 @@ export async function webhookRoutes(fastify: FastifyInstance) {
 
           const userResult = await User.signUp(userDataResult.userData!);
 
+          // Determine internal invite + role from public metadata
+          const publicMeta: any = (event as any)?.data?.public_metadata || (event as any)?.data?.publicMeta;
+          const isInternal: boolean = publicMeta?.internal === true;
+          const invitedRole: string | undefined = publicMeta?.role;
 
-
+          // If role present, mirror into local users table
+          try {
+            const u = await User.findByEmail(userDataResult.userData!.email);
+            if (u && invitedRole) {
+              await db.update(users).set({ role: invitedRole, updatedAt: new Date() }).where(eq(users.id, u.id));
+            }
+          } catch {}
           // Send welcome email async (non-blocking)
           sendWelcomeEmail(
             userDataResult.userData!.firstName,
@@ -109,12 +119,14 @@ export async function webhookRoutes(fastify: FastifyInstance) {
             logger.error("Unhandled error sending welcome email:", error);
           });
 
-          // Send phone verification OTP if user exists
-          const user = await User.findByEmail(userDataResult.userData!.email);
-          if (user) {
-            User.sendPhoneVerificationOtp(user.clerkId).catch((error) => {
-              logger.error("Unhandled error sending phone verification OTP:", error);
-            });
+          // For internal users, skip phone OTP; otherwise send if user exists
+          if (!isInternal) {
+            const user = await User.findByEmail(userDataResult.userData!.email);
+            if (user) {
+              User.sendPhoneVerificationOtp(user.clerkId).catch((error) => {
+                logger.error("Unhandled error sending phone verification OTP:", error);
+              });
+            }
           }
 
           return reply.send(userResult);
