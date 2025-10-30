@@ -1,8 +1,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { docuSignService, type DocuSignWebhookEvent } from "../services/docusign.service";
 import { db } from "../db";
-import { users } from "../db/schema";
-import { eq } from "drizzle-orm";
+import { users, internalInvitations } from "../db/schema";
+import { eq, desc } from "drizzle-orm";
 import { logger } from "../utils/logger";
 import { verifyClerkWebhook } from "../utils/webhook.utils";
 import { extractEmailUpdateFromWebhook, extractUserDataFromWebhook } from "../modules/user/user.utils";
@@ -139,38 +139,60 @@ export async function webhookRoutes(fastify: FastifyInstance) {
         if (type === "email.created") {
           try {
             const payload: any = event?.data || {};
-            const code: string | undefined = payload?.data?.otp_code;
             const toEmail: string | undefined = payload?.to_email_address;
 
-            if (!code || !toEmail) {
-              logger.warn("email.created missing otp_code or to_email_address", { codePresent: !!code, toEmailPresent: !!toEmail });
-              return reply.code(200).send({ received: true, ignored: true });
-            }
-
-            let firstName = "";
-            try {
-              const user = await User.findByEmail(toEmail);
-              if (!user) {
-                logger.warn("User not found by email for firstName; proceeding without it", { toEmail });
-              } else if (user.firstName) {
-                firstName = user.firstName;
+            // Branch A: Verification code emails (existing behavior)
+            const code: string | undefined = payload?.data?.otp_code;
+            if (code && toEmail) {
+              let firstName = "";
+              try {
+                const user = await User.findByEmail(toEmail);
+                if (!user) {
+                  logger.warn("User not found by email for firstName; proceeding without it", { toEmail });
+                } else if (user.firstName) {
+                  firstName = user.firstName;
+                }
+              } catch (e) {
+                logger.warn("Lookup errored; proceeding without firstName", { toEmail, error: e instanceof Error ? e.message : e });
               }
-            } catch (e) {
-              logger.warn("Lookup errored; proceeding without firstName", { toEmail, error: e instanceof Error ? e.message : e });
+
+              const sendResult = await emailService.sendVerificationCodeEmail({
+                firstName,
+                email: toEmail,
+                code,
+              });
+
+              if (!sendResult.success) {
+                logger.error("Failed to dispatch verification email", { toEmail, error: sendResult.error });
+                return reply.code(500).send({ error: "EMAIL_SEND_FAILED" });
+              }
+
+              return reply.send({ received: true, messageId: sendResult.messageId });
             }
 
-            const sendResult = await emailService.sendVerificationCodeEmail({
-              firstName,
-              email: toEmail,
-              code,
-            });
+            // Branch B: Invitation emails — send our custom invite email with __clerk_ticket link
+            // Attempt to extract the invitation CTA URL Clerk includes (name may vary by template)
+            const inviteUrl: string | undefined = payload?.data?.action_url || payload?.data?.url || payload?.data?.links?.[0]?.url;
+            if (toEmail && inviteUrl) {
+              // Find latest pending internal invitation to get the intended role
+              const record = await db.query.internalInvitations.findFirst({
+                where: eq(internalInvitations.email, toEmail),
+                orderBy: desc(internalInvitations.createdAt),
+              });
 
-            if (!sendResult.success) {
-              logger.error("Failed to dispatch verification email", { toEmail, error: sendResult.error });
-              return reply.code(500).send({ error: "EMAIL_SEND_FAILED" });
+              const role: 'super-admin' | 'admin' | 'member' = (record?.role as any) || 'member';
+              const sendInvite = await emailService.sendInternalInviteEmail({ email: toEmail, inviteUrl, role });
+              if (!sendInvite.success) {
+                logger.error("Failed to send custom internal invite email", { toEmail, error: sendInvite.error });
+                return reply.code(500).send({ error: "INVITE_EMAIL_SEND_FAILED" });
+              }
+
+              return reply.send({ received: true, messageId: sendInvite.messageId });
             }
 
-            return reply.send({ received: true, messageId: sendResult.messageId });
+            // If neither OTP nor invitation URL present, ignore
+            logger.warn("email.created payload not recognized (no otp_code or invite url)", { hasEmail: !!toEmail });
+            return reply.code(200).send({ received: true, ignored: true });
           } catch (e) {
             logger.error("Unexpected error handling email.created", e);
             return reply.code(500).send({ error: "INTERNAL_ERROR" });

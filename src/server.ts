@@ -30,6 +30,7 @@ import { webhookRoutes } from './routes/webhooks.routes';
 import { documentRequestsRoutes } from './routes/document-requests.routes';
 import { userGroupsRoutes } from './routes/user-groups.routes';
 import { ResponseCachingService } from './modules/response-caching/response-caching.service';
+import { adminInternalUsersRoutes } from './routes/admin-internal-users.routes';
 
 config();
 
@@ -66,6 +67,7 @@ export async function registerPlugins(fastify: FastifyInstance): Promise<void> {
   await fastify.register(ResponseCachingService.createPlugin());
   
   await fastify.register(userRoutes, { prefix: '/user' });
+  await fastify.register(adminInternalUsersRoutes);
   await fastify.register(businessRoutes, { prefix: '/business' });
   await fastify.register(documentsRoutes, { prefix: '/documents' });
   await fastify.register(businessDocumentsRoutes, { prefix: '/business' });
