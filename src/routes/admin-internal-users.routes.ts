@@ -162,6 +162,32 @@ export async function adminInternalUsersRoutes(fastify: FastifyInstance) {
       }
     }
   );
+
+  fastify.post(
+    "/admin/internal-users/:clerkUserId/activate",
+    {
+      schema: {
+        params: InternalUsersModel.ClerkUserIdParamsSchema,
+        response: {
+          200: InternalUsersModel.BasicSuccessResponseSchema,
+          401: { type: 'object', properties: { error: { type: 'string' } }, required: ['error'] },
+          403: { type: 'object', properties: { error: { type: 'string' } }, required: ['error'] },
+          500: { type: 'object', properties: { error: { type: 'string' } }, required: ['error'] },
+        },
+        tags: ["admin-internal-users"],
+      },
+    },
+    async (request: FastifyRequest<{ Params: InternalUsersModel.ClerkUserIdParams }>, reply: FastifyReply) => {
+      try {
+        await requireSuperAdmin(request);
+        const result = await InternalUsersService.activateUser({ clerkUserId: request.params.clerkUserId });
+        return reply.send(result);
+      } catch (error: any) {
+        const status = error?.status || 500;
+        return reply.code(status).send({ error: error?.message || "Internal error" });
+      }
+    }
+  );
 }
 
 

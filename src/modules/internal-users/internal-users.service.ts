@@ -62,8 +62,10 @@ export class InternalUsersService {
   }
 
   static async listInternalUsers(): Promise<InternalUsersModel.ListUsersResponse> {
-    // Pending invitations
-    const invites = await db.query.internalInvitations.findMany({});
+    // Pending invitations only
+    const invites = await db.query.internalInvitations.findMany({
+      where: eq(internalInvitations.status, 'pending' as any),
+    });
 
     // Existing local users with a role (internal)
     const localUsers = await db.query.users.findMany({});
@@ -86,7 +88,7 @@ export class InternalUsersService {
       if (!u.role) continue;
       try {
         const cu = await clerkClient.users.getUser(u.clerkId);
-        const inactive = (cu?.banned === true);
+        const inactive = (cu as any)?.banned === true || (cu as any)?.locked === true || Boolean((cu as any)?.lockout_expires_at);
         items.push({
           name: [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email,
           imageUrl: u.imageUrl || undefined,
@@ -124,7 +126,12 @@ export class InternalUsersService {
 
   static async resendInvitation(params: { localInvitationId: string }): Promise<InternalUsersModel.BasicSuccessResponse> {
     logger.info("[INVITE] Resend request received", { invitationId: params.localInvitationId });
-    const inv = await db.query.internalInvitations.findFirst({ where: eq(internalInvitations.id, params.localInvitationId) });
+    let inv = await db.query.internalInvitations.findFirst({ where: eq(internalInvitations.id, params.localInvitationId) });
+    // Support passing Clerk invitation id as well
+    if (!inv) {
+      logger.info("[INVITE] Resend lookup by clerkInvitationId fallback", { clerkInvitationId: params.localInvitationId });
+      inv = await db.query.internalInvitations.findFirst({ where: eq(internalInvitations.clerkInvitationId, params.localInvitationId) });
+    }
     if (!inv) {
       const err: any = new Error('Invitation not found');
       err.status = 404;
@@ -144,21 +151,27 @@ export class InternalUsersService {
 
   static async revokeInvitation(params: { localInvitationId: string }): Promise<InternalUsersModel.BasicSuccessResponse> {
     logger.info("[INVITE] Revoke request received", { invitationId: params.localInvitationId });
-    const inv = await db.query.internalInvitations.findFirst({ where: eq(internalInvitations.id, params.localInvitationId) });
+    let inv = await db.query.internalInvitations.findFirst({ where: eq(internalInvitations.id, params.localInvitationId) });
+    // Support passing Clerk invitation id as well
+    if (!inv) {
+      logger.info("[INVITE] Revoke lookup by clerkInvitationId fallback", { clerkInvitationId: params.localInvitationId });
+      inv = await db.query.internalInvitations.findFirst({ where: eq(internalInvitations.clerkInvitationId, params.localInvitationId) });
+    }
     if (!inv || !inv.clerkInvitationId) {
       const err: any = new Error('Invitation not found');
       err.status = 404;
       throw err;
     }
-    // Revoke via Clerk
+    // Revoke via Clerk then remove local record
     await clerkClient.invitations.revokeInvitation(inv.clerkInvitationId as any);
-    await db.update(internalInvitations).set({ status: 'revoked' as any, updatedAt: new Date() }).where(eq(internalInvitations.id, inv.id));
-    logger.info("[INVITE] Revoked Clerk invitation", { email: inv.email, invitationId: inv.clerkInvitationId });
+    await db.delete(internalInvitations).where(eq(internalInvitations.id, inv.id));
+    logger.info("[INVITE] Revoked Clerk invitation and deleted local record", { email: inv.email, invitationId: inv.clerkInvitationId });
     return { success: true };
   }
 
   static async deactivateUser(params: { clerkUserId: string }): Promise<InternalUsersModel.BasicSuccessResponse> {
-    await clerkClient.users.updateUser(params.clerkUserId, { banned: true } as any);
+    // Prefer locking the user instead of banning, so we can later unlock
+    await clerkClient.users.lockUser(params.clerkUserId as any);
     try {
       const sessions = await clerkClient.sessions.getSessionList({ userId: params.clerkUserId } as any);
       for (const s of (sessions as any)?.data || []) {
@@ -176,6 +189,12 @@ export class InternalUsersService {
         await db.update(users).set({ deletedAt: new Date(), updatedAt: new Date() }).where(eq(users.id, u.id));
       }
     } catch {}
+    return { success: true };
+  }
+
+  static async activateUser(params: { clerkUserId: string }): Promise<InternalUsersModel.BasicSuccessResponse> {
+    // Unlock the user account in Clerk
+    await clerkClient.users.unlockUser(params.clerkUserId as any);
     return { success: true };
   }
 }
